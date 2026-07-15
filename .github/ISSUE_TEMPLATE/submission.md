@@ -8,14 +8,14 @@ assignees: ''
 
 ## Кандидат
 
-**Имя Фамилия:** 
-**Email:** 
+**Имя Фамилия:** Владислав Буель
+**Email:** vladosbuyel@gmail.com
 
 ---
 
 ## Ссылки
 
-**GitHub репозиторий:** 
+**GitHub репозиторий:** https://github.com/vbuyel/mtbank-ai-hiring.git
 **Живое демо (HTTPS):** 
 
 ---
