@@ -1,0 +1,14 @@
+FROM ghcr.io/open-webui/pipelines:main
+
+USER root
+RUN apt-get update \
+    && apt-get install --no-install-recommends -y ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt /tmp/mtbank-requirements.txt
+RUN pip install --no-cache-dir -r /tmp/mtbank-requirements.txt
+
+COPY . /app/project
+COPY pipeline.py /app/pipelines/mtbank_pipeline.py
+
+ENV PYTHONPATH=/app/project
