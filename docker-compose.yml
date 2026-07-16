@@ -28,6 +28,7 @@ services:
       HF_HOME: /root/.cache/huggingface
     volumes:
       - ${HOME}/.cache/huggingface:/root/.cache/huggingface
+      - open-webui-data:/open-webui-data:ro
     ports:
       - "9099:9099"
     healthcheck:

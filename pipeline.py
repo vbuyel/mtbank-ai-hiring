@@ -6,7 +6,9 @@ license: MIT
 description: ASR and four-agent analysis for Russian contact-center calls.
 """
 
+import asyncio
 import re
+from threading import Lock
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -21,6 +23,7 @@ from services.factory import build_application
 from shared.logging import configure_logging
 
 AUDIO_URL_RE = re.compile(r"https?://\S+\.(?:wav|mp3|ogg)(?:\?\S*)?", re.IGNORECASE)
+WEBUI_UPLOAD_DIR = Path("/open-webui-data/uploads")
 
 
 @dataclass
@@ -59,6 +62,8 @@ class Pipeline:
             MAX_AUDIO_BYTES=settings.max_audio_bytes,
         )
         self.container: ApplicationContainer | None = None
+        self._runner = asyncio.Runner()
+        self._runner_lock = Lock()
 
 
     async def on_startup(self) -> None:
@@ -79,10 +84,36 @@ class Pipeline:
         self.container = None
 
 
-    async def pipe(
-        self, body: dict[str, Any], __user__: dict[str, Any] | None = None
+    async def inlet(
+        self, body: dict[str, Any], user: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
+        del user
+        metadata = body.get("metadata", {})
+        files = body.get("files") or metadata.get("files") or []
+        references = (self._uploaded_audio(item) for item in files)
+        reference = next((item for item in references if item), None)
+        if reference:
+            body["audio_url"] = str(reference)
+        else:
+            body["skip_audio"] = True
+        return body
+
+
+    def pipe(
+        self,
+        user_message: str,
+        model_id: str,
+        messages: list[dict[str, Any]],
+        body: dict[str, Any],
     ) -> str:
-        del __user__
+        del model_id, messages
+        if body.get("skip_audio") or body.get("metadata", {}).get("task"):
+            return user_message
+        with self._runner_lock:
+            return self._runner.run(self._analyze(body))
+
+
+    async def _analyze(self, body: dict[str, Any]) -> str:
         if self.container is None:
             await self.on_startup()
         assert self.container is not None
@@ -110,8 +141,10 @@ class Pipeline:
         if audio_url := body.get("audio_url"):
             return str(audio_url)
 
-        for file_info in body.get("files", []):
-            if reference := file_info.get("path") or file_info.get("url"):
+        metadata = body.get("metadata", {})
+        files = body.get("files") or metadata.get("files") or []
+        for file_info in files:
+            if reference := Pipeline._uploaded_audio(file_info):
                 return str(reference)
 
         messages = body.get("messages", [])
@@ -119,6 +152,20 @@ class Pipeline:
         if match := AUDIO_URL_RE.search(content):
             return match.group(0)
         raise ValueError("Загрузите WAV/MP3/OGG файл или отправьте прямой URL")
+
+
+    @staticmethod
+    def _uploaded_audio(file_info: dict[str, Any]) -> Path | None:
+        details = file_info.get("file")
+        details = details if isinstance(details, dict) else file_info
+        file_id = str(details.get("id") or file_info.get("id") or "")
+        name = str(details.get("filename") or file_info.get("name") or "")
+        suffix = Path(name).suffix.lower()
+        candidates = (
+            WEBUI_UPLOAD_DIR / f"{file_id}_{Path(name).name}",
+            WEBUI_UPLOAD_DIR / f"{file_id}{suffix}",
+        )
+        return next((path for path in candidates if path.is_file()), None)
 
 
     @staticmethod
