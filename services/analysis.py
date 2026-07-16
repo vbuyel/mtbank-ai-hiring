@@ -42,7 +42,7 @@ class AnalysisService(AnalysisUseCase):
     async def analyze(self, audio_path: Path) -> AnalysisResponse:
         log_event(self.logger, "analysis_started", audio=str(audio_path))
         raw = await self.dependencies.transcriber.transcribe(audio_path)
-        transcript = self.dependencies.diarizer.assign_speakers(raw)
+        transcript = await self.dependencies.diarizer.assign_speakers(raw)
         if not transcript:
             raise ValueError("В аудио не удалось распознать речь")
         context = await self._run_reviews(transcript)

@@ -22,6 +22,15 @@ class ClassificationResult(BaseModel):
     priority: Literal["low", "medium", "high"]
 
 
+class SegmentSpeaker(BaseModel):
+    index: int
+    speaker: Speaker
+
+
+class DiarizationResult(BaseModel):
+    speakers: list[SegmentSpeaker]
+
+
 class QualityChecklist(BaseModel):
     greeting: bool
     need_detection: bool

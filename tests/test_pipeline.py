@@ -4,7 +4,6 @@ from pathlib import Path
 
 import pytest
 
-from asr.diarizer import Diarizer
 from models.schemas import (
     ClassificationResult,
     ComplianceResult,
@@ -12,9 +11,25 @@ from models.schemas import (
     QualityResult,
     RawSegment,
     SummaryResult,
+    TranscriptSegment,
 )
 from pipeline import Pipeline
 from services.analysis import AnalysisDependencies, AnalysisService
+
+
+class FakeDiarizer:
+    async def assign_speakers(
+        self, segments: list[RawSegment]
+    ) -> list[TranscriptSegment]:
+        return [
+            TranscriptSegment(
+                speaker="Оператор" if i == 0 else "Клиент",
+                start=seg.start,
+                end=seg.end,
+                text=seg.text,
+            )
+            for i, seg in enumerate(segments)
+        ]
 
 
 class FakeTranscriber:
@@ -65,7 +80,7 @@ class FakeSummarizer:
 def build_service() -> AnalysisService:
     dependencies = AnalysisDependencies(
         transcriber=FakeTranscriber(),
-        diarizer=Diarizer(),
+        diarizer=FakeDiarizer(),
         classifier=FakeClassifier(),
         quality=FakeQuality(),
         compliance=FakeCompliance(),

@@ -34,7 +34,7 @@ class TranscriberPort(ABC):
 
 class DiarizerPort(ABC):
     @abstractmethod
-    def assign_speakers(
+    async def assign_speakers(
         self, segments: list[RawSegment]
     ) -> list[TranscriptSegment]:
         pass
