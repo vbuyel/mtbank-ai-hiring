@@ -1,10 +1,11 @@
 """Detects potentially non-compliant operator statements."""
 
 from agents.base import BaseAgent
+from core.ports import CompliancePort
 from models.schemas import ComplianceResult, TranscriptSegment
 
 
-class ComplianceAgent(BaseAgent):
+class ComplianceAgent(BaseAgent, CompliancePort):
     name = "compliance"
 
     def system_prompt(self) -> str:
@@ -18,4 +19,5 @@ class ComplianceAgent(BaseAgent):
     async def run(
         self, transcript: list[TranscriptSegment]
     ) -> ComplianceResult:
-        return await self._execute(transcript, ComplianceResult)
+        compliance_result = await self._execute(transcript, ComplianceResult)
+        return compliance_result

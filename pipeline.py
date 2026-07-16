@@ -7,19 +7,32 @@ description: ASR and four-agent analysis for Russian contact-center calls.
 """
 
 import re
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, Field
 
 from config import Settings, get_settings
+from core.container import ApplicationContainer
+from core.ports import AudioResource
 from models.schemas import AnalysisResponse
-from services.analysis import AnalysisService
-from services.factory import build_analysis_service
-from utils.audio import download_audio
+from services.factory import build_application
 from utils.logging import configure_logging
 
 AUDIO_URL_RE = re.compile(r"https?://\S+\.(?:wav|mp3|ogg)(?:\?\S*)?", re.IGNORECASE)
+
+
+@dataclass
+class LocalAudio(AudioResource):
+    _path: Path
+
+    @property
+    def path(self) -> Path:
+        return self._path
+
+    def close(self) -> None:
+        pass
 
 
 class Pipeline:
@@ -31,6 +44,7 @@ class Pipeline:
         WHISPER_DEVICE: str = "cpu"
         WHISPER_COMPUTE_TYPE: str = "int8"
         MAX_AUDIO_BYTES: int = 50 * 1024 * 1024
+
 
     def __init__(self) -> None:
         settings = get_settings()
@@ -44,7 +58,8 @@ class Pipeline:
             WHISPER_COMPUTE_TYPE=settings.whisper_compute_type,
             MAX_AUDIO_BYTES=settings.max_audio_bytes,
         )
-        self.service: AnalysisService | None = None
+        self.container: ApplicationContainer | None = None
+
 
     async def on_startup(self) -> None:
         configure_logging()
@@ -57,10 +72,12 @@ class Pipeline:
             whisper_compute_type=self.valves.WHISPER_COMPUTE_TYPE,
             max_audio_bytes=self.valves.MAX_AUDIO_BYTES,
         )
-        self.service = build_analysis_service(settings)
+        self.container = build_application(settings)
+
 
     async def on_shutdown(self) -> None:
-        self.service = None
+        self.container = None
+
 
     async def pipe(
         self,
@@ -68,27 +85,27 @@ class Pipeline:
         __user__: dict[str, Any] | None = None,
     ) -> str:
         del __user__
-        if self.service is None:
+        if self.container is None:
             await self.on_startup()
+        assert self.container is not None
 
-        audio_reference = self._extract_audio_reference(body)
-        temporary_path: Path | None = None
-        if audio_reference.startswith(("http://", "https://")):
-            temporary_path = await download_audio(
-                audio_reference,
-                self.valves.MAX_AUDIO_BYTES,
-            )
-            audio_path = temporary_path
-        else:
-            audio_path = Path(audio_reference)
-
+        audio = await self._resolve_audio(body)
         try:
-            assert self.service is not None
-            result = await self.service.analyze(audio_path)
-            return self._format_markdown(result)
+            result = await self.container.analysis.analyze(audio.path)
+            formatted_analysis_result = self._format_markdown(result)
         finally:
-            if temporary_path:
-                temporary_path.unlink(missing_ok=True)
+            audio.close()
+        return formatted_analysis_result
+
+
+    async def _resolve_audio(self, body: dict[str, Any]) -> AudioResource:
+        reference = self._extract_audio_reference(body)
+        assert self.container is not None
+        if reference.startswith(("http://", "https://")):
+            return await self.container.audio_storage.from_url(reference)
+        audio = LocalAudio(Path(reference))
+        return audio
+
 
     @staticmethod
     def _extract_audio_reference(body: dict[str, Any]) -> str:
@@ -105,18 +122,13 @@ class Pipeline:
             return match.group(0)
         raise ValueError("Загрузите WAV/MP3/OGG файл или отправьте прямой URL")
 
+
     @staticmethod
     def _format_markdown(result: AnalysisResponse) -> str:
-        transcript = "\n".join(
-            f"- `{item.start:.1f}–{item.end:.1f}` **{item.speaker}:** {item.text}"
-            for item in result.transcript
-        )
-        issues = (
-            "\n".join(f"- {issue.rule}: “{issue.quote}”" for issue in result.compliance.issues)
-            or "- Нарушений не найдено"
-        )
-        actions = "\n".join(f"- {item}" for item in result.action_items) or "- Нет"
-        return (
+        transcript = Pipeline._format_transcript(result)
+        issues = Pipeline._format_issues(result)
+        actions = Pipeline._format_actions(result)
+        formatted_result = (
             "## Анализ звонка\n"
             f"**Тема:** {result.classification.topic}  \n"
             f"**Приоритет:** {result.classification.priority}  \n"
@@ -126,3 +138,28 @@ class Pipeline:
             f"### Дальнейшие действия\n{actions}\n\n"
             f"### Транскрипт\n{transcript}"
         )
+        return formatted_result
+
+
+    @staticmethod
+    def _format_transcript(result: AnalysisResponse) -> str:
+        formatted_transcrition = "\n".join(
+            f"- `{item.start:.1f}–{item.end:.1f}` **{item.speaker}:** {item.text}"
+            for item in result.transcript
+        )
+        return formatted_transcrition
+
+
+    @staticmethod
+    def _format_issues(result: AnalysisResponse) -> str:
+        formatted_issues = "\n".join(
+            f"- {issue.rule}: “{issue.quote}”"
+            for issue in result.compliance.issues
+        ) or "- Нарушений не найдено"
+        return formatted_issues
+
+
+    @staticmethod
+    def _format_actions(result: AnalysisResponse) -> str:
+        formatted_actions = "\n".join(f"- {item}" for item in result.action_items) or "- Нет"
+        return formatted_actions

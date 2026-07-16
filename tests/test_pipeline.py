@@ -14,16 +14,17 @@ from models.schemas import (
     SummaryResult,
 )
 from pipeline import Pipeline
-from services.analysis import AnalysisService
+from services.analysis import AnalysisDependencies, AnalysisService
 
 
 class FakeTranscriber:
     async def transcribe(self, audio_path):
         assert audio_path == Path("call.wav")
-        return [
+        raw_segments = [
             RawSegment(start=0, end=2, text="Добрый день, МТБанк."),
             RawSegment(start=2, end=4, text="Нужна кредитная карта."),
         ]
+        return raw_segments
 
 
 class FakeClassifier:
@@ -33,15 +34,17 @@ class FakeClassifier:
 
 class FakeQuality:
     async def run(self, transcript):
-        return QualityResult(
-            total=50,
-            checklist=QualityChecklist(
-                greeting=True,
-                need_detection=True,
-                solution_provided=False,
-                farewell=False,
-            ),
+        checklist = QualityChecklist(
+            greeting=True,
+            need_detection=True,
+            solution_provided=False,
+            farewell=False,
         )
+        result = QualityResult(
+            total=50,
+            checklist=checklist,
+        )
+        return result
 
 
 class FakeCompliance:
@@ -50,17 +53,17 @@ class FakeCompliance:
 
 
 class FakeSummarizer:
-    async def run(self, transcript, **peer_results):
-        assert peer_results["classification"].topic == "карты"
-        return SummaryResult(
+    async def run(self, transcript, context):
+        assert context.classification.topic == "карты"
+        result = SummaryResult(
             summary="Клиент запросил кредитную карту.",
             action_items=["Уточнить требования клиента"],
         )
+        return result
 
 
-@pytest.mark.asyncio
-async def test_supervisor_builds_complete_response() -> None:
-    service = AnalysisService(
+def build_service() -> AnalysisService:
+    dependencies = AnalysisDependencies(
         transcriber=FakeTranscriber(),
         diarizer=Diarizer(),
         classifier=FakeClassifier(),
@@ -68,9 +71,14 @@ async def test_supervisor_builds_complete_response() -> None:
         compliance=FakeCompliance(),
         summarizer=FakeSummarizer(),
     )
+    analysis_service = AnalysisService(dependencies)
+    return analysis_service
 
+
+@pytest.mark.asyncio
+async def test_supervisor_builds_complete_response() -> None:
+    service = build_service()
     result = await service.analyze(Path("call.wav"))
-
     assert result.transcript[0].speaker == "Оператор"
     assert result.classification.topic == "карты"
     assert result.quality_score.total == 50

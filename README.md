@@ -30,7 +30,10 @@ flowchart LR
 ## Структура
 
 - `pipeline.py` — обязательный OpenWebUI Pipeline и Markdown-ответ.
-- `api/main.py` — REST API, принимающий файл или URL.
+- `api/main.py` — HTTP-маршруты, зависящие только от абстракций.
+- `api/bootstrap.py` — HTTP Composition Root, где подключаются реализации.
+- `core/ports.py` — абстрактные классы (порты) приложения.
+- `core/container.py` — контейнер абстрактных зависимостей для entry points.
 - `services/analysis.py` — единый сценарий анализа для обоих входов.
 - `services/factory.py` — Composition Root.
 - `services/llm_client.py` — OpenAI-compatible LLM adapter.
@@ -38,6 +41,48 @@ flowchart LR
 - `asr/` — ASR adapter и базовая диаризация.
 - `models/` — Pydantic-контракты.
 - `utils/` — JSON-логирование и работа с аудио.
+
+## Куда писать реализацию
+
+Зависимости направлены от реализаций к стабильным портам:
+
+```mermaid
+flowchart LR
+    API[api/main.py] --> Ports[core/ports.py]
+    Supervisor[services/analysis.py] --> Ports
+    Adapters[agents + asr + utils] --> Ports
+    Bootstrap[api/bootstrap.py] --> Factory[services/factory.py]
+    Factory --> Adapters
+    Factory --> Supervisor
+```
+
+Правила размещения:
+
+- Новый бизнес-сценарий или интерфейс сначала объявляется абстрактным классом
+  в `core/ports.py`.
+- Оркестрация шагов пишется в `services/analysis.py`; сетевого и файлового
+  кода там быть не должно.
+- Подключение конкретных классов выполняется только в `services/factory.py`.
+- HTTP parsing, коды ответа и FastAPI-зависимости пишутся в `api/main.py`.
+- Запуск FastAPI, конфигурация и создание реальных объектов — в
+  `api/bootstrap.py`.
+- Реализация нового LLM-провайдера пишется в `services/llm_client.py` либо
+  отдельном адаптере рядом; класс реализует `StructuredLLMPort`.
+- Реализация ASR пишется в `asr/transcriber.py` и реализует `TranscriberPort`.
+- Реализация диаризации пишется в `asr/diarizer.py` и реализует
+  `DiarizerPort`.
+- Промпт и логика конкретного эксперта пишутся в соответствующем файле
+  `agents/`; общий вызов LLM и логирование остаются в `agents/base.py`.
+- Структуры входа/выхода добавляются в `models/schemas.py`, а не в API или
+  агенты.
+- Загрузка файлов и URL реализуется в `utils/audio.py` через
+  `AudioStoragePort`.
+- Общие технические утилиты без бизнес-решений размещаются в `utils/`.
+- Подмена реализации в тесте делается классом-заглушкой соответствующего
+  порта; FastAPI и Supervisor не нужно переписывать.
+
+Все функции ограничены 15 строками. Ограничение автоматически проверяется в
+`tests/test_architecture.py`.
 
 ## Локальный запуск
 

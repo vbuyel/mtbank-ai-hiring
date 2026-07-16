@@ -1,10 +1,11 @@
 """Classifies the call topic and operational priority."""
 
 from agents.base import BaseAgent
+from core.ports import ClassifierPort
 from models.schemas import ClassificationResult, TranscriptSegment
 
 
-class ClassifierAgent(BaseAgent):
+class ClassifierAgent(BaseAgent, ClassifierPort):
     name = "classifier"
 
     def system_prompt(self) -> str:
@@ -17,4 +18,5 @@ class ClassifierAgent(BaseAgent):
     async def run(
         self, transcript: list[TranscriptSegment]
     ) -> ClassificationResult:
-        return await self._execute(transcript, ClassificationResult)
+        classification_result = await self._execute(transcript, ClassificationResult)
+        return classification_result

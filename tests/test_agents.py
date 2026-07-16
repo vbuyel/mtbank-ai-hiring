@@ -11,40 +11,37 @@ from models.schemas import (
     ComplianceResult,
     QualityChecklist,
     QualityResult,
+    SummaryContext,
     SummaryResult,
     TranscriptSegment,
 )
 
+FAKE_RESPONSES = {
+    ClassificationResult: ClassificationResult(topic="кредиты", priority="medium"),
+    QualityResult: QualityResult(
+        total=75,
+        checklist=QualityChecklist(
+            greeting=True, need_detection=True,
+            solution_provided=True, farewell=False,
+        ),
+    ),
+    ComplianceResult: ComplianceResult(passed=True),
+    SummaryResult: SummaryResult(
+        summary="Клиент уточнил условия кредита.",
+        action_items=["Отправить клиенту условия"],
+    ),
+}
+
 
 class FakeLLMClient:
-    async def complete_json(self, *, response_model, **kwargs):
-        del kwargs
-        responses = {
-            ClassificationResult: ClassificationResult(
-                topic="кредиты",
-                priority="medium",
-            ),
-            QualityResult: QualityResult(
-                total=75,
-                checklist=QualityChecklist(
-                    greeting=True,
-                    need_detection=True,
-                    solution_provided=True,
-                    farewell=False,
-                ),
-            ),
-            ComplianceResult: ComplianceResult(passed=True),
-            SummaryResult: SummaryResult(
-                summary="Клиент уточнил условия кредита.",
-                action_items=["Отправить клиенту условия"],
-            ),
-        }
-        return responses[response_model]
+    async def complete_json(self, system_prompt, user_prompt, response_model):
+        del system_prompt, user_prompt
+        return FAKE_RESPONSES[response_model]
 
 
 @pytest.fixture
 def transcript() -> list[TranscriptSegment]:
-    return [
+    transcriptions = [
         TranscriptSegment(
             speaker="Оператор",
             start=0,
@@ -58,6 +55,21 @@ def transcript() -> list[TranscriptSegment]:
             text="Хочу узнать условия кредита.",
         ),
     ]
+    return transcriptions
+
+
+@pytest.fixture
+def summary_context() -> SummaryContext:
+    checklist = QualityChecklist(
+        greeting=True, need_detection=True,
+        solution_provided=True, farewell=False,
+    )
+    summary = SummaryContext(
+        classification=ClassificationResult(topic="кредиты", priority="medium"),
+        quality=QualityResult(total=75, checklist=checklist),
+        compliance=ComplianceResult(passed=True),
+    )
+    return summary
 
 
 @pytest.mark.asyncio
@@ -85,24 +97,8 @@ async def test_compliance_returns_status(transcript) -> None:
 
 
 @pytest.mark.asyncio
-async def test_summarizer_uses_peer_results(transcript) -> None:
+async def test_summarizer_uses_peer_results(transcript, summary_context) -> None:
     llm = FakeLLMClient()
-    summary = await SummarizerAgent(llm).run(
-        transcript,
-        classification=ClassificationResult(
-            topic="кредиты",
-            priority="medium",
-        ),
-        quality=QualityResult(
-            total=75,
-            checklist=QualityChecklist(
-                greeting=True,
-                need_detection=True,
-                solution_provided=True,
-                farewell=False,
-            ),
-        ),
-        compliance=ComplianceResult(passed=True),
-    )
+    summary = await SummarizerAgent(llm).run(transcript, summary_context)
 
     assert summary.action_items == ["Отправить клиенту условия"]

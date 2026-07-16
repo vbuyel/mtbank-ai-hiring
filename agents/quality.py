@@ -1,10 +1,11 @@
 """Scores the operator against a compact service checklist."""
 
 from agents.base import BaseAgent
+from core.ports import QualityPort
 from models.schemas import QualityResult, TranscriptSegment
 
 
-class QualityAgent(BaseAgent):
+class QualityAgent(BaseAgent, QualityPort):
     name = "quality"
 
     def system_prompt(self) -> str:
@@ -15,4 +16,5 @@ class QualityAgent(BaseAgent):
         )
 
     async def run(self, transcript: list[TranscriptSegment]) -> QualityResult:
-        return await self._execute(transcript, QualityResult)
+        quality_result = await self._execute(transcript, QualityResult)
+        return quality_result

@@ -4,6 +4,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+Speaker = Literal["Оператор", "Клиент"]
+
 
 class RawSegment(BaseModel):
     start: float = Field(ge=0)
@@ -12,7 +14,7 @@ class RawSegment(BaseModel):
 
 
 class TranscriptSegment(RawSegment):
-    speaker: Literal["Оператор", "Клиент"]
+    speaker: Speaker
 
 
 class ClassificationResult(BaseModel):
@@ -47,6 +49,12 @@ class ComplianceResult(BaseModel):
 class SummaryResult(BaseModel):
     summary: str = Field(min_length=1)
     action_items: list[str] = Field(default_factory=list)
+
+
+class SummaryContext(BaseModel):
+    classification: ClassificationResult
+    quality: QualityResult
+    compliance: ComplianceResult
 
 
 class AnalysisResponse(BaseModel):
