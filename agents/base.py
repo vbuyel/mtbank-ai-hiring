@@ -28,8 +28,16 @@ class BaseAgent(ABC):
     ) -> ResultT:
         self._log_started(transcript)
         user_prompt = self._build_user_prompt(transcript, extra_context)
+        result = await self._call_llm(user_prompt, response_model)
+        self._log_completed(result)
+        return result
+
+
+    async def _call_llm(
+        self, user_prompt: str, response_model: type[ResultT]
+    ) -> ResultT:
         try:
-            result = await self.llm.complete_json(
+            return await self.llm.complete_json(
                 system_prompt=self.system_prompt(),
                 user_prompt=user_prompt,
                 response_model=response_model,
@@ -37,8 +45,6 @@ class BaseAgent(ABC):
         except Exception:
             self._log_failed()
             raise
-        self._log_completed(result)
-        return result
 
 
     @abstractmethod

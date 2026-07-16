@@ -36,7 +36,11 @@ class LLMClient(StructuredLLMPort):
     def _messages(system: str, user: str, model: type[BaseModel]) -> list[dict]:
         schema = json.dumps(model.model_json_schema(), ensure_ascii=False)
         instruction = (
-            f"{system}\nВерни только JSON по этой JSON Schema:\n{schema}"
+            f"{system}\n\n"
+            "You MUST return a JSON object conforming to the JSON Schema below. "
+            "Do NOT return the schema itself. Do NOT nest your response under a 'properties' key. "
+            "Extract/analyze the text and fill the fields with actual data.\n\n"
+            f"JSON Schema:\n{schema}"
         )
         messages = [
             {"role": "system", "content": instruction},

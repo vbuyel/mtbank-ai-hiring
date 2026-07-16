@@ -31,17 +31,13 @@ def build_application(settings: Settings) -> ApplicationContainer:
 def _build_analysis_dependencies(
     settings: Settings, llm: StructuredLLMPort
 ) -> AnalysisDependencies:
-    transcriber = Transcriber(
+    t = Transcriber(
         settings.whisper_model,
         device=settings.whisper_device,
         compute_type=settings.whisper_compute_type,
     )
-    analysis_deps = AnalysisDependencies(
-        transcriber=transcriber,
-        diarizer=Diarizer(),
-        classifier=ClassifierAgent(llm),
-        quality=QualityAgent(llm),
-        compliance=ComplianceAgent(llm),
-        summarizer=SummarizerAgent(llm),
+    return AnalysisDependencies(
+        transcriber=t, diarizer=Diarizer(),
+        classifier=ClassifierAgent(llm), quality=QualityAgent(llm),
+        compliance=ComplianceAgent(llm), summarizer=SummarizerAgent(llm),
     )
-    return analysis_deps
