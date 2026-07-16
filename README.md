@@ -40,7 +40,7 @@ flowchart LR
 - `agents/` — четыре независимых агента.
 - `asr/` — ASR adapter и базовая диаризация.
 - `models/` — Pydantic-контракты.
-- `utils/` — JSON-логирование и работа с аудио.
+- `shared/` — JSON-логирование и работа с аудио (не `utils/`: конфликт с OpenWebUI).
 
 ## Куда писать реализацию
 
@@ -50,7 +50,7 @@ flowchart LR
 flowchart LR
     API[api/main.py] --> Ports[core/ports.py]
     Supervisor[services/analysis.py] --> Ports
-    Adapters[agents + asr + utils] --> Ports
+    Adapters[agents + asr + shared] --> Ports
     Bootstrap[api/bootstrap.py] --> Factory[services/factory.py]
     Factory --> Adapters
     Factory --> Supervisor
@@ -75,9 +75,9 @@ flowchart LR
   `agents/`; общий вызов LLM и логирование остаются в `agents/base.py`.
 - Структуры входа/выхода добавляются в `models/schemas.py`, а не в API или
   агенты.
-- Загрузка файлов и URL реализуется в `utils/audio.py` через
+- Загрузка файлов и URL реализуется в `shared/audio.py` через
   `AudioStoragePort`.
-- Общие технические утилиты без бизнес-решений размещаются в `utils/`.
+- Общие технические утилиты без бизнес-решений размещаются в `shared/`.
 - Подмена реализации в тесте делается классом-заглушкой соответствующего
   порта; FastAPI и Supervisor не нужно переписывать.
 
@@ -86,14 +86,38 @@ flowchart LR
 
 ## Локальный запуск
 
-1. Скопируйте конфигурацию:
+### Вариант A — только API (быстро, без Docker)
+
+Нужны: Python 3.11+, [Ollama](https://ollama.com) с любой chat-моделью.
+
+```bash
+cp .env.example .env
+# в .env для запуска на хосте:
+#   LLM_BASE_URL=http://127.0.0.1:11434/v1
+#   LLM_MODEL=llama3.2          # или ваша модель из `ollama list`
+#   WHISPER_MODEL=tiny          # для быстрого старта; для сдачи — medium
+
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+
+# если HuggingFace недоступен через системный proxy — снимите proxy на время старта
+uvicorn api.bootstrap:app --host 127.0.0.1 --port 8000
+```
+
+Откройте Swagger: <http://127.0.0.1:8000/docs>  
+Проверка: `curl http://127.0.0.1:8000/health` → `{"status":"ok"}`
+
+### Вариант B — полный стек (OpenWebUI + Pipelines + API)
+
+1. Запустите **Docker Desktop** (иначе `docker compose` упадёт с ошибкой socket).
+2. В `.env` для контейнеров верните:
 
    ```bash
-   cp .env.example .env
+   LLM_BASE_URL=http://host.docker.internal:11434/v1
+   LLM_MODEL=llama3.2   # модель должна быть в Ollama на хосте
+   WHISPER_MODEL=medium # требование ТЗ
    ```
-
-2. Запустите OpenAI-compatible LLM. Значения по умолчанию рассчитаны на
-   Ollama с моделью `qwen2.5:7b`.
 
 3. Поднимите стек:
 
@@ -105,7 +129,7 @@ flowchart LR
    - OpenWebUI: <http://localhost:3000>
    - Swagger API: <http://localhost:8000/docs>
 
-Первый запуск скачивает Whisper `medium` и поэтому занимает больше времени.
+Первый запуск скачивает Whisper и образы — это может занять много времени.
 
 ## REST API
 

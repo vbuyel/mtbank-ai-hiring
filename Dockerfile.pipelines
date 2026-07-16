@@ -11,4 +11,4 @@ RUN pip install --no-cache-dir -r /tmp/mtbank-requirements.txt
 COPY . /app/project
 COPY pipeline.py /app/pipelines/mtbank_pipeline.py
 
-ENV PYTHONPATH=/app/project
+ENV PYTHONPATH=/app/project:/app

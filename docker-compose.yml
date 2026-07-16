@@ -21,10 +21,13 @@ services:
       PIPELINES_API_KEY: ${PIPELINES_API_KEY:-mtbank-pipelines-key}
       LLM_BASE_URL: ${LLM_BASE_URL:-http://host.docker.internal:11434/v1}
       LLM_API_KEY: ${LLM_API_KEY:-ollama}
-      LLM_MODEL: ${LLM_MODEL:-qwen2.5:7b}
-      WHISPER_MODEL: ${WHISPER_MODEL:-medium}
+      LLM_MODEL: ${LLM_MODEL:-llama3.2}
+      WHISPER_MODEL: ${WHISPER_MODEL:-tiny}
       WHISPER_DEVICE: ${WHISPER_DEVICE:-cpu}
       WHISPER_COMPUTE_TYPE: ${WHISPER_COMPUTE_TYPE:-int8}
+      HF_HOME: /root/.cache/huggingface
+    volumes:
+      - ${HOME}/.cache/huggingface:/root/.cache/huggingface
     ports:
       - "9099:9099"
     healthcheck:
@@ -32,7 +35,8 @@ services:
         ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9099/')"]
       interval: 10s
       timeout: 5s
-      retries: 12
+      retries: 30
+      start_period: 30s
     restart: unless-stopped
 
   api:
@@ -42,10 +46,13 @@ services:
     environment:
       LLM_BASE_URL: ${LLM_BASE_URL:-http://host.docker.internal:11434/v1}
       LLM_API_KEY: ${LLM_API_KEY:-ollama}
-      LLM_MODEL: ${LLM_MODEL:-qwen2.5:7b}
-      WHISPER_MODEL: ${WHISPER_MODEL:-medium}
+      LLM_MODEL: ${LLM_MODEL:-llama3.2}
+      WHISPER_MODEL: ${WHISPER_MODEL:-tiny}
       WHISPER_DEVICE: ${WHISPER_DEVICE:-cpu}
       WHISPER_COMPUTE_TYPE: ${WHISPER_COMPUTE_TYPE:-int8}
+      HF_HOME: /root/.cache/huggingface
+    volumes:
+      - ${HOME}/.cache/huggingface:/root/.cache/huggingface
     ports:
       - "8000:8000"
     healthcheck:
@@ -53,7 +60,8 @@ services:
         ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 10s
       timeout: 5s
-      retries: 12
+      retries: 30
+      start_period: 20s
     restart: unless-stopped
 
 volumes:

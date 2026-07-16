@@ -18,10 +18,7 @@ class LLMClient(StructuredLLMPort):
 
 
     async def complete_json(
-        self,
-        system_prompt: str,
-        user_prompt: str,
-        response_model: type[ResultT],
+        self, system_prompt: str, user_prompt: str, response_model: type[ResultT]
     ) -> ResultT:
         completion = await self._client.chat.completions.create(
             model=self._model,

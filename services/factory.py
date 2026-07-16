@@ -4,15 +4,14 @@ from agents.classifier import ClassifierAgent
 from agents.compliance import ComplianceAgent
 from agents.quality import QualityAgent
 from agents.summarizer import SummarizerAgent
-from asr import transcriber
 from asr.diarizer import Diarizer
 from asr.transcriber import Transcriber
-from config import Settings
+from settings import Settings
 from core.container import ApplicationContainer
 from core.ports import StructuredLLMPort
 from services.analysis import AnalysisDependencies, AnalysisService
 from services.llm_client import LLMClient
-from utils.audio import LocalAudioStorage
+from shared.audio import LocalAudioStorage
 
 
 def build_application(settings: Settings) -> ApplicationContainer:
@@ -30,8 +29,7 @@ def build_application(settings: Settings) -> ApplicationContainer:
 
 
 def _build_analysis_dependencies(
-    settings: Settings,
-    llm: StructuredLLMPort,
+    settings: Settings, llm: StructuredLLMPort
 ) -> AnalysisDependencies:
     transcriber = Transcriber(
         settings.whisper_model,

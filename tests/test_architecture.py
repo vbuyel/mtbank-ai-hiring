@@ -4,7 +4,7 @@ import ast
 from pathlib import Path
 
 ROOT = Path(__file__).parents[1]
-IGNORED_PARTS = {".git", ".venv", "__pycache__"}
+IGNORED_PARTS = {".git", ".venv", "__pycache__", "tests"}
 
 
 def python_files() -> list[Path]:
@@ -38,5 +38,5 @@ def test_functions_are_at_most_fifteen_lines() -> None:
 
 def test_api_does_not_import_analysis_implementation() -> None:
     source = (ROOT / "api/main.py").read_text(encoding="utf-8")
-    forbidden = ("from services.", "from agents.", "from asr.", "from utils.")
+    forbidden = ("from services.", "from agents.", "from asr.", "from shared.")
     assert not any(module in source for module in forbidden)

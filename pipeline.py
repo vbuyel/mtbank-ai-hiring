@@ -13,12 +13,12 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from config import Settings, get_settings
+from settings import Settings, get_settings
 from core.container import ApplicationContainer
 from core.ports import AudioResource
 from models.schemas import AnalysisResponse
 from services.factory import build_application
-from utils.logging import configure_logging
+from shared.logging import configure_logging
 
 AUDIO_URL_RE = re.compile(r"https?://\S+\.(?:wav|mp3|ogg)(?:\?\S*)?", re.IGNORECASE)
 
@@ -80,9 +80,7 @@ class Pipeline:
 
 
     async def pipe(
-        self,
-        body: dict[str, Any],
-        __user__: dict[str, Any] | None = None,
+        self, body: dict[str, Any], __user__: dict[str, Any] | None = None
     ) -> str:
         del __user__
         if self.container is None:

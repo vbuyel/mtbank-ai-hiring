@@ -20,7 +20,7 @@ from models.schemas import (
     SummaryResult,
     TranscriptSegment,
 )
-from utils.logging import log_event
+from shared.logging import log_event
 
 
 @dataclass(frozen=True)

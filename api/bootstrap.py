@@ -6,9 +6,9 @@ from typing import AsyncIterator
 from fastapi import FastAPI
 
 from api.main import router, value_error_handler
-from config import get_settings
+from settings import get_settings
 from services.factory import build_application
-from utils.logging import configure_logging
+from shared.logging import configure_logging
 
 
 @asynccontextmanager

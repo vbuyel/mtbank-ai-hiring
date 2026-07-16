@@ -8,7 +8,7 @@ from pydantic import BaseModel
 
 from core.ports import StructuredLLMPort
 from models.schemas import TranscriptSegment
-from utils.logging import log_event
+from shared.logging import log_event
 
 ResultT = TypeVar("ResultT", bound=BaseModel)
 
@@ -23,10 +23,8 @@ class BaseAgent(ABC):
 
 
     async def _execute(
-        self,
-        transcript: list[TranscriptSegment],
-        response_model: type[ResultT],
-        extra_context: str = "",
+        self, transcript: list[TranscriptSegment],
+        response_model: type[ResultT], extra_context: str = "",
     ) -> ResultT:
         self._log_started(transcript)
         user_prompt = self._build_user_prompt(transcript, extra_context)

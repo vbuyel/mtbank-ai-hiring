@@ -6,7 +6,7 @@ from faster_whisper import WhisperModel
 
 from core.ports import TranscriberPort
 from models.schemas import RawSegment
-from utils.audio import validate_audio_name
+from shared.audio import validate_audio_name
 
 
 class Transcriber(TranscriberPort):
