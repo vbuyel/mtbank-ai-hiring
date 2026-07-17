@@ -7,14 +7,27 @@ from models.schemas import QualityResult, TranscriptSegment
 
 class QualityAgent(BaseAgent, QualityPort):
     name = "quality"
+    weights = {
+        "greeting": 25,
+        "need_detection": 25,
+        "solution_provided": 35,
+        "farewell": 15,
+    }
 
     def system_prompt(self) -> str:
         return (
             "Ты контролёр качества контакт-центра. Проверь только реплики "
             "оператора: приветствие, выявление потребности, предложенное решение "
-            "и прощание. Рассчитай аргументированный балл от 0 до 100."
+            "и прощание. Решение считается предоставленным только если оператор "
+            "сообщил конкретный ответ или следующий шаг. Поле total будет "
+            "пересчитано программно."
         )
 
     async def run(self, transcript: list[TranscriptSegment]) -> QualityResult:
-        quality_result = await self._execute(transcript, QualityResult)
-        return quality_result
+        result = await self._execute(transcript, QualityResult)
+        total = sum(
+            self.weights[name]
+            for name, value in result.checklist.model_dump().items()
+            if value
+        )
+        return result.model_copy(update={"total": total})

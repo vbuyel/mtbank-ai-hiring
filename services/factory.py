@@ -28,9 +28,7 @@ def build_application(settings: Settings) -> ApplicationContainer:
     return app_container
 
 
-def _build_analysis_dependencies(
-    settings: Settings, llm: StructuredLLMPort
-) -> AnalysisDependencies:
+def _build_analysis_dependencies(settings: Settings, llm: StructuredLLMPort) -> AnalysisDependencies:
     transcriber = Transcriber(
         settings.whisper_model,
         device=settings.whisper_device,

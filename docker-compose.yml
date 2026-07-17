@@ -6,6 +6,7 @@ services:
     environment:
       OPENAI_API_BASE_URLS: http://pipelines:9099
       OPENAI_API_KEYS: ${PIPELINES_API_KEY:-mtbank-pipelines-key}
+      ENABLE_FOLLOW_UP_GENERATION: "False"
     volumes:
       - open-webui-data:/app/backend/data
     depends_on:

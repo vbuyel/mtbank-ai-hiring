@@ -109,14 +109,18 @@ class Pipeline:
         body: dict[str, Any],
     ) -> str:
         del model_id, messages
-        if (
-            body.get("skip_audio")
-            or body.get("task")
-            or body.get("metadata", {}).get("task")
-        ):
+        if self._should_skip(body):
             return user_message
         with self._runner_lock:
             return self._runner.run(self._analyze(body))
+
+    @staticmethod
+    def _should_skip(body: dict[str, Any]) -> bool:
+        return bool(
+            body.get("skip_audio")
+            or body.get("task")
+            or body.get("metadata", {}).get("task")
+        )
 
 
     async def _analyze(self, body: dict[str, Any]) -> str:

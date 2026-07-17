@@ -18,5 +18,10 @@ class ClassifierAgent(BaseAgent, ClassifierPort):
     async def run(
         self, transcript: list[TranscriptSegment]
     ) -> ClassificationResult:
-        classification_result = await self._execute(transcript, ClassificationResult)
-        return classification_result
+        result = await self._execute(transcript, ClassificationResult)
+        text = " ".join(item.text for item in transcript).casefold()
+        complaint_markers = ("жалоб", "недовол", "претенз", "возмущ", "обман")
+        false_complaint = not any(marker in text for marker in complaint_markers)
+        if result.topic == "жалобы" and "кредит" in text and false_complaint:
+            return result.model_copy(update={"topic": "кредиты"})
+        return result
