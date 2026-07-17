@@ -88,12 +88,9 @@ class Pipeline:
         self, body: dict[str, Any], user: dict[str, Any] | None = None
     ) -> dict[str, Any]:
         del user
-        metadata = body.get("metadata", {})
-        files = body.get("files") or metadata.get("files") or []
-        references = (self._uploaded_audio(item) for item in files)
-        reference = next((item for item in references if item), None)
-        if reference:
-            body["audio_url"] = str(reference)
+        audio_path = self._upload_path(body)
+        if audio_path is not None:
+            body["audio_url"] = str(audio_path)
         else:
             body["skip_audio"] = True
         return body
@@ -107,7 +104,7 @@ class Pipeline:
         body: dict[str, Any],
     ) -> str:
         del model_id, messages
-        if body.get("skip_audio") or body.get("metadata", {}).get("task"):
+        if body.get("skip_audio"):
             return user_message
         with self._runner_lock:
             return self._runner.run(self._analyze(body))
@@ -117,14 +114,11 @@ class Pipeline:
         if self.container is None:
             await self.on_startup()
         assert self.container is not None
-
         audio = await self._resolve_audio(body)
         try:
-            result = await self.container.analysis.analyze(audio.path)
-            formatted_analysis_result = self._format_markdown(result)
+            return self._format_markdown(await self.container.analysis.analyze(audio.path))
         finally:
             audio.close()
-        return formatted_analysis_result
 
 
     async def _resolve_audio(self, body: dict[str, Any]) -> AudioResource:
@@ -132,21 +126,13 @@ class Pipeline:
         assert self.container is not None
         if reference.startswith(("http://", "https://")):
             return await self.container.audio_storage.from_url(reference)
-        audio = LocalAudio(Path(reference))
-        return audio
+        return LocalAudio(Path(reference))
 
 
     @staticmethod
     def _extract_audio_reference(body: dict[str, Any]) -> str:
         if audio_url := body.get("audio_url"):
             return str(audio_url)
-
-        metadata = body.get("metadata", {})
-        files = body.get("files") or metadata.get("files") or []
-        for file_info in files:
-            if reference := Pipeline._uploaded_audio(file_info):
-                return str(reference)
-
         messages = body.get("messages", [])
         content = str(messages[-1].get("content", "")) if messages else ""
         if match := AUDIO_URL_RE.search(content):
@@ -155,17 +141,14 @@ class Pipeline:
 
 
     @staticmethod
-    def _uploaded_audio(file_info: dict[str, Any]) -> Path | None:
-        details = file_info.get("file")
-        details = details if isinstance(details, dict) else file_info
-        file_id = str(details.get("id") or file_info.get("id") or "")
-        name = str(details.get("filename") or file_info.get("name") or "")
-        suffix = Path(name).suffix.lower()
-        candidates = (
-            WEBUI_UPLOAD_DIR / f"{file_id}_{Path(name).name}",
-            WEBUI_UPLOAD_DIR / f"{file_id}{suffix}",
-        )
-        return next((path for path in candidates if path.is_file()), None)
+    def _upload_path(body: dict[str, Any]) -> Path | None:
+        metadata = body.get("metadata", {})
+        for attachment in metadata.get("files", []):
+            file = attachment["file"]
+            path = WEBUI_UPLOAD_DIR / f"{file['id']}_{Path(file['filename']).name}"
+            if path.is_file():
+                return path
+        return None
 
 
     @staticmethod
