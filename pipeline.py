@@ -88,6 +88,11 @@ class Pipeline:
         self, body: dict[str, Any], user: dict[str, Any] | None = None
     ) -> dict[str, Any]:
         del user
+        task = body.get("metadata", {}).get("task")
+        if task:
+            body["task"] = task
+            body["skip_audio"] = True
+            return body
         audio_path = self._upload_path(body)
         if audio_path is not None:
             body["audio_url"] = str(audio_path)
@@ -104,7 +109,11 @@ class Pipeline:
         body: dict[str, Any],
     ) -> str:
         del model_id, messages
-        if body.get("skip_audio"):
+        if (
+            body.get("skip_audio")
+            or body.get("task")
+            or body.get("metadata", {}).get("task")
+        ):
             return user_message
         with self._runner_lock:
             return self._runner.run(self._analyze(body))

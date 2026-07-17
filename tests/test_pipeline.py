@@ -91,6 +91,26 @@ def build_service() -> AnalysisService:
 
 
 @pytest.mark.asyncio
+async def test_pipeline_skips_open_webui_background_tasks() -> None:
+    pipeline = object.__new__(Pipeline)
+    body = await pipeline.inlet(
+        {"metadata": {"task": "title_generation"}},
+    )
+    body.pop("metadata")
+
+    result = pipeline.pipe(
+        user_message="Фоновая задача",
+        model_id="mtbank",
+        messages=[],
+        body=body,
+    )
+
+    assert body["task"] == "title_generation"
+    assert body["skip_audio"] is True
+    assert result == "Фоновая задача"
+
+
+@pytest.mark.asyncio
 async def test_supervisor_builds_complete_response() -> None:
     service = build_service()
     result = await service.analyze(Path("call.wav"))
