@@ -12,7 +12,6 @@ from models.schemas import (
     ComplianceResult,
     QualityResult,
     RawSegment,
-    SummaryContext,
     SummaryResult,
     TranscriptSegment,
 )
@@ -67,7 +66,7 @@ class CompliancePort(ABC):
 class SummarizerPort(ABC):
     @abstractmethod
     async def run(
-        self, transcript: list[TranscriptSegment], context: SummaryContext
+        self, transcript: list[TranscriptSegment]
     ) -> SummaryResult:
         pass
 

@@ -1,5 +1,6 @@
 """Integration-style test for the supervisor with dependency doubles."""
 
+import asyncio
 from pathlib import Path
 
 import pytest
@@ -68,8 +69,8 @@ class FakeCompliance:
 
 
 class FakeSummarizer:
-    async def run(self, transcript, context):
-        assert context.classification.topic == "карты"
+    async def run(self, transcript):
+        assert transcript[1].text == "Нужна кредитная карта."
         result = SummaryResult(
             summary="Клиент запросил кредитную карту.",
             action_items=["Уточнить требования клиента"],
@@ -119,3 +120,59 @@ async def test_supervisor_builds_complete_response() -> None:
     assert result.quality_score.total == 50
     assert result.summary == "Клиент запросил кредитную карту."
     assert "## Анализ звонка" in Pipeline._format_markdown(result)
+
+
+@pytest.mark.asyncio
+async def test_supervisor_runs_all_agents_in_parallel() -> None:
+    all_started = asyncio.Event()
+    started = 0
+
+    async def wait_for_peers() -> None:
+        nonlocal started
+        started += 1
+        if started == 4:
+            all_started.set()
+        await asyncio.wait_for(all_started.wait(), timeout=1)
+
+    class ConcurrentClassifier:
+        async def run(self, transcript):
+            await wait_for_peers()
+            return ClassificationResult(topic="карты", priority="medium")
+
+    class ConcurrentQuality:
+        async def run(self, transcript):
+            await wait_for_peers()
+            return QualityResult(
+                total=50,
+                checklist=QualityChecklist(
+                    greeting=True,
+                    need_detection=True,
+                    solution_provided=False,
+                    farewell=False,
+                ),
+            )
+
+    class ConcurrentCompliance:
+        async def run(self, transcript):
+            await wait_for_peers()
+            return ComplianceResult(passed=True)
+
+    class ConcurrentSummarizer:
+        async def run(self, transcript):
+            await wait_for_peers()
+            return SummaryResult(summary="Резюме")
+
+    service = AnalysisService(
+        AnalysisDependencies(
+            transcriber=FakeTranscriber(),
+            diarizer=FakeDiarizer(),
+            classifier=ConcurrentClassifier(),
+            quality=ConcurrentQuality(),
+            compliance=ConcurrentCompliance(),
+            summarizer=ConcurrentSummarizer(),
+        )
+    )
+
+    await service.analyze(Path("call.wav"))
+
+    assert started == 4

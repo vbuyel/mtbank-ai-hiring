@@ -16,11 +16,17 @@ from core.ports import (
 )
 from models.schemas import (
     AnalysisResponse,
-    SummaryContext,
+    ClassificationResult,
+    ComplianceResult,
+    QualityResult,
     SummaryResult,
     TranscriptSegment,
 )
 from shared.logging import log_event
+
+AgentResults = tuple[
+    ClassificationResult, QualityResult, ComplianceResult, SummaryResult
+]
 
 
 @dataclass(frozen=True)
@@ -45,45 +51,38 @@ class AnalysisService(AnalysisUseCase):
         transcript = await self.dependencies.diarizer.assign_speakers(raw)
         if not transcript:
             raise ValueError("В аудио не удалось распознать речь")
-        context = await self._run_reviews(transcript)
-        summary = await self.dependencies.summarizer.run(transcript, context)
-        response = self._build_response(transcript, context, summary)
+        results = await self._run_agents(transcript)
+        response = self._build_response(transcript, *results)
         self._log_completed(response)
         return response
 
-
-    async def _run_reviews(
-        self,
-        transcript: list[TranscriptSegment],
-    ) -> SummaryContext:
-        classification, quality, compliance = await asyncio.gather(
+    async def _run_agents(
+        self, transcript: list[TranscriptSegment]
+    ) -> AgentResults:
+        return await asyncio.gather(
             self.dependencies.classifier.run(transcript),
             self.dependencies.quality.run(transcript),
             self.dependencies.compliance.run(transcript),
+            self.dependencies.summarizer.run(transcript),
         )
-        summary = SummaryContext(
-            classification=classification,
-            quality=quality,
-            compliance=compliance,
-        )
-        return summary
 
 
     @staticmethod
     def _build_response(
         transcript: list[TranscriptSegment],
-        context: SummaryContext,
+        classification: ClassificationResult,
+        quality: QualityResult,
+        compliance: ComplianceResult,
         summary: SummaryResult,
     ) -> AnalysisResponse:
-        response = AnalysisResponse(
+        return AnalysisResponse(
             transcript=transcript,
-            classification=context.classification,
-            quality_score=context.quality,
-            compliance=context.compliance,
+            classification=classification,
+            quality_score=quality,
+            compliance=compliance,
             summary=summary.summary,
             action_items=summary.action_items,
         )
-        return response
 
 
     def _log_completed(self, response: AnalysisResponse) -> None:

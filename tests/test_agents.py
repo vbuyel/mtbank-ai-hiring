@@ -16,7 +16,6 @@ from models.schemas import (
     QualityResult,
     RawSegment,
     SegmentSpeaker,
-    SummaryContext,
     SummaryResult,
     TranscriptSegment,
 )
@@ -72,20 +71,6 @@ def transcript() -> list[TranscriptSegment]:
     return transcriptions
 
 
-@pytest.fixture
-def summary_context() -> SummaryContext:
-    checklist = QualityChecklist(
-        greeting=True, need_detection=True,
-        solution_provided=True, farewell=False,
-    )
-    summary = SummaryContext(
-        classification=ClassificationResult(topic="кредиты", priority="medium"),
-        quality=QualityResult(total=75, checklist=checklist),
-        compliance=ComplianceResult(passed=True),
-    )
-    return summary
-
-
 @pytest.mark.asyncio
 async def test_classifier_returns_topic(transcript) -> None:
     llm = FakeLLMClient()
@@ -138,8 +123,8 @@ async def test_diarizer_corrects_clear_client_intent() -> None:
 
 
 @pytest.mark.asyncio
-async def test_summarizer_uses_peer_results(transcript, summary_context) -> None:
+async def test_summarizer_uses_transcript_only(transcript) -> None:
     llm = FakeLLMClient()
-    summary = await SummarizerAgent(llm).run(transcript, summary_context)
+    summary = await SummarizerAgent(llm).run(transcript)
 
     assert summary.action_items == ["Отправить клиенту условия"]

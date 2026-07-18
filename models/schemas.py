@@ -60,12 +60,6 @@ class SummaryResult(BaseModel):
     action_items: list[str] = Field(default_factory=list)
 
 
-class SummaryContext(BaseModel):
-    classification: ClassificationResult
-    quality: QualityResult
-    compliance: ComplianceResult
-
-
 class AnalysisResponse(BaseModel):
     transcript: list[TranscriptSegment]
     classification: ClassificationResult
