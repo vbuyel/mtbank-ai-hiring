@@ -20,9 +20,21 @@ services:
       dockerfile: Dockerfile.pipelines
     environment:
       PIPELINES_API_KEY: ${PIPELINES_API_KEY:-mtbank-pipelines-key}
-      LLM_BASE_URL: ${LLM_BASE_URL:-http://host.docker.internal:11434/v1}
-      LLM_API_KEY: ${LLM_API_KEY:-ollama}
-      LLM_MODEL: ${LLM_MODEL:-llama3.2}
+      DIARIZER_LLM_BASE_URL: ${DIARIZER_LLM_BASE_URL:-http://host.docker.internal:11434/v1}
+      DIARIZER_LLM_API_KEY: ${DIARIZER_LLM_API_KEY:-ollama}
+      DIARIZER_LLM_MODEL: ${DIARIZER_LLM_MODEL:-llama3.2}
+      CLASSIFIER_LLM_BASE_URL: ${CLASSIFIER_LLM_BASE_URL:-http://host.docker.internal:11434/v1}
+      CLASSIFIER_LLM_API_KEY: ${CLASSIFIER_LLM_API_KEY:-ollama}
+      CLASSIFIER_LLM_MODEL: ${CLASSIFIER_LLM_MODEL:-llama3.2}
+      QUALITY_LLM_BASE_URL: ${QUALITY_LLM_BASE_URL:-http://host.docker.internal:11434/v1}
+      QUALITY_LLM_API_KEY: ${QUALITY_LLM_API_KEY:-ollama}
+      QUALITY_LLM_MODEL: ${QUALITY_LLM_MODEL:-llama3.2}
+      COMPLIANCE_LLM_BASE_URL: ${COMPLIANCE_LLM_BASE_URL:-http://host.docker.internal:11434/v1}
+      COMPLIANCE_LLM_API_KEY: ${COMPLIANCE_LLM_API_KEY:-ollama}
+      COMPLIANCE_LLM_MODEL: ${COMPLIANCE_LLM_MODEL:-llama3.2}
+      SUMMARIZER_LLM_BASE_URL: ${SUMMARIZER_LLM_BASE_URL:-http://host.docker.internal:11434/v1}
+      SUMMARIZER_LLM_API_KEY: ${SUMMARIZER_LLM_API_KEY:-ollama}
+      SUMMARIZER_LLM_MODEL: ${SUMMARIZER_LLM_MODEL:-llama3.2}
       WHISPER_MODEL: ${WHISPER_MODEL:-tiny}
       WHISPER_DEVICE: ${WHISPER_DEVICE:-cpu}
       WHISPER_COMPUTE_TYPE: ${WHISPER_COMPUTE_TYPE:-int8}
@@ -46,9 +58,21 @@ services:
       context: .
       dockerfile: Dockerfile
     environment:
-      LLM_BASE_URL: ${LLM_BASE_URL:-http://host.docker.internal:11434/v1}
-      LLM_API_KEY: ${LLM_API_KEY:-ollama}
-      LLM_MODEL: ${LLM_MODEL:-llama3.2}
+      DIARIZER_LLM_BASE_URL: ${DIARIZER_LLM_BASE_URL:-http://host.docker.internal:11434/v1}
+      DIARIZER_LLM_API_KEY: ${DIARIZER_LLM_API_KEY:-ollama}
+      DIARIZER_LLM_MODEL: ${DIARIZER_LLM_MODEL:-llama3.2}
+      CLASSIFIER_LLM_BASE_URL: ${CLASSIFIER_LLM_BASE_URL:-http://host.docker.internal:11434/v1}
+      CLASSIFIER_LLM_API_KEY: ${CLASSIFIER_LLM_API_KEY:-ollama}
+      CLASSIFIER_LLM_MODEL: ${CLASSIFIER_LLM_MODEL:-llama3.2}
+      QUALITY_LLM_BASE_URL: ${QUALITY_LLM_BASE_URL:-http://host.docker.internal:11434/v1}
+      QUALITY_LLM_API_KEY: ${QUALITY_LLM_API_KEY:-ollama}
+      QUALITY_LLM_MODEL: ${QUALITY_LLM_MODEL:-llama3.2}
+      COMPLIANCE_LLM_BASE_URL: ${COMPLIANCE_LLM_BASE_URL:-http://host.docker.internal:11434/v1}
+      COMPLIANCE_LLM_API_KEY: ${COMPLIANCE_LLM_API_KEY:-ollama}
+      COMPLIANCE_LLM_MODEL: ${COMPLIANCE_LLM_MODEL:-llama3.2}
+      SUMMARIZER_LLM_BASE_URL: ${SUMMARIZER_LLM_BASE_URL:-http://host.docker.internal:11434/v1}
+      SUMMARIZER_LLM_API_KEY: ${SUMMARIZER_LLM_API_KEY:-ollama}
+      SUMMARIZER_LLM_MODEL: ${SUMMARIZER_LLM_MODEL:-llama3.2}
       WHISPER_MODEL: ${WHISPER_MODEL:-tiny}
       WHISPER_DEVICE: ${WHISPER_DEVICE:-cpu}
       WHISPER_COMPUTE_TYPE: ${WHISPER_COMPUTE_TYPE:-int8}

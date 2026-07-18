@@ -13,9 +13,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
-from settings import Settings, get_settings
+from settings import get_settings
 from core.container import ApplicationContainer
 from core.ports import AudioResource
 from models.schemas import AnalysisResponse
@@ -40,43 +40,20 @@ class LocalAudio(AudioResource):
 
 class Pipeline:
     class Valves(BaseModel):
-        LLM_BASE_URL: str = "http://host.docker.internal:11434/v1"
-        LLM_API_KEY: str = Field(default="ollama", json_schema_extra={"secret": True})
-        LLM_MODEL: str = "qwen2.5:7b"
-        WHISPER_MODEL: str = "medium"
-        WHISPER_DEVICE: str = "cpu"
-        WHISPER_COMPUTE_TYPE: str = "int8"
-        MAX_AUDIO_BYTES: int = 50 * 1024 * 1024
+        pass
 
 
     def __init__(self) -> None:
-        settings = get_settings()
         self.name = "MTBank Call Analytics"
-        self.valves = self.Valves(
-            LLM_BASE_URL=settings.llm_base_url,
-            LLM_API_KEY=settings.llm_api_key,
-            LLM_MODEL=settings.llm_model,
-            WHISPER_MODEL=settings.whisper_model,
-            WHISPER_DEVICE=settings.whisper_device,
-            WHISPER_COMPUTE_TYPE=settings.whisper_compute_type,
-            MAX_AUDIO_BYTES=settings.max_audio_bytes,
-        )
+        self.valves = self.Valves()
         self.container: ApplicationContainer | None = None
         self._runner = asyncio.Runner()
         self._runner_lock = Lock()
 
 
     async def on_startup(self) -> None:
-        configure_logging()
-        settings = Settings(
-            llm_base_url=self.valves.LLM_BASE_URL,
-            llm_api_key=self.valves.LLM_API_KEY,
-            llm_model=self.valves.LLM_MODEL,
-            whisper_model=self.valves.WHISPER_MODEL,
-            whisper_device=self.valves.WHISPER_DEVICE,
-            whisper_compute_type=self.valves.WHISPER_COMPUTE_TYPE,
-            max_audio_bytes=self.valves.MAX_AUDIO_BYTES,
-        )
+        settings = get_settings()
+        configure_logging(settings.log_level)
         self.container = build_application(settings)
 
 
@@ -113,6 +90,7 @@ class Pipeline:
             return user_message
         with self._runner_lock:
             return self._runner.run(self._analyze(body))
+
 
     @staticmethod
     def _should_skip(body: dict[str, Any]) -> bool:

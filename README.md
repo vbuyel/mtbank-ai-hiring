@@ -113,15 +113,20 @@ cp .env.example .env
 
 | Переменная | Назначение |
 |---|---|
-| `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL` | Подключение к LLM |
+| `DIARIZER_LLM_*` | Модель диаризации (кто говорит) |
+| `CLASSIFIER_LLM_*` | Модель классификации разговора |
+| `QUALITY_LLM_*` | Модель оценки качества |
+| `COMPLIANCE_LLM_*` | Модель compliance-проверки |
+| `SUMMARIZER_LLM_*` | Модель итогового резюме |
 | `WHISPER_MODEL`, `WHISPER_DEVICE`, `WHISPER_COMPUTE_TYPE` | Конфигурация ASR |
 | `MAX_AUDIO_BYTES` | Максимальный размер входного файла, по умолчанию 50 MiB |
 | `LOG_LEVEL` | Уровень JSON-логирования |
 
-`tiny` в `.env.example` и Docker Compose предназначен для быстрого локального
-старта. Для соответствия ТЗ задайте `WHISPER_MODEL=medium` или более крупную
-модель. Для запуска контейнеров с Ollama на хосте используйте
-`LLM_BASE_URL=http://host.docker.internal:11434/v1`.
+Для каждой задачи задаётся свой набор `*_LLM_BASE_URL`, `*_LLM_API_KEY`,
+`*_LLM_MODEL`. Общей модели нет. `tiny` в `.env.example` и Docker Compose
+предназначен для быстрого локального старта. Для соответствия ТЗ задайте
+`WHISPER_MODEL=medium` или более крупную модель. Для запуска контейнеров с
+Ollama на хосте используйте `*_LLM_BASE_URL=http://host.docker.internal:11434/v1`.
 
 ## Запуск
 
@@ -131,10 +136,12 @@ cp .env.example .env
 
 ```bash
 cp .env.example .env
-# в .env для запуска на хосте:
-#   LLM_BASE_URL=http://127.0.0.1:11434/v1
-#   LLM_MODEL=llama3.2          # или ваша модель из `ollama list`
-#   WHISPER_MODEL=tiny          # для быстрого старта; для сдачи — medium
+# в .env для запуска (для каждой задачи свой набор):
+#   DIARIZER_LLM_BASE_URL=https://your-provider-url/v1 or http://127.0.0.1:11434/v1
+#   DIARIZER_API_KEY=your-api-key or ollama
+#   DIARIZER_LLM_MODEL=your-model-name
+#   ... то же для CLASSIFIER/QUALITY/COMPLIANCE/SUMMARIZER
+#   WHISPER_MODEL=tiny            # для быстрого старта
 
 python3 -m venv .venv
 source .venv/bin/activate
@@ -153,9 +160,11 @@ uvicorn api.bootstrap:app --host 127.0.0.1 --port 8000
 2. В `.env` для контейнеров верните:
 
    ```bash
-   LLM_BASE_URL=http://host.docker.internal:11434/v1
-   LLM_MODEL=llama3.2   # модель должна быть в Ollama на хосте
-   WHISPER_MODEL=medium # требование ТЗ
+   DIARIZER_LLM_BASE_URL=https://your-provider-url/v1 or http://host.docker.internal:11434/v1
+   DIARIZER_API_KEY=your-api-key or ollama
+   DIARIZER_LLM_MODEL=your-model-name
+   ... то же для CLASSIFIER/QUALITY/COMPLIANCE/SUMMARIZER
+   WHISPER_MODEL=tiny            # для быстрого старта
    ```
 
 3. Поднимите стек:
@@ -213,9 +222,10 @@ curl -X POST http://localhost:8000/analyze \
 
 После `docker compose up --build` откройте <http://localhost:3000>, выберите
 **MTBank Call Analytics** и загрузите WAV/MP3/OGG в чат либо отправьте прямой
-URL на файл. Pipeline получает вложение из хранилища OpenWebUI, запускает тот же
-сценарий анализа, что и API, и возвращает Markdown-отчёт с темой, приоритетом,
-оценкой качества, резюме, compliance и транскриптом.
+URL на файл. Конфиг LLM/ASR берётся из `.env` (через `Settings`), не из Valves
+в UI. Pipeline запускает тот же сценарий анализа, что и API, и возвращает
+Markdown-отчёт с темой, приоритетом, оценкой качества, резюме, compliance и
+транскриптом.
 
 ## Тесты
 
