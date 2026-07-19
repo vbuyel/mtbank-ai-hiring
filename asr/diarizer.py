@@ -13,7 +13,7 @@ class Diarizer(DiarizerPort):
         "подскажите ваш", "есть еще вопросы",
     )
     client_hints = (
-        "хочу узнать", "мне нуж",
+        "хочу узнать", "мне нуж", "лучше онлайн",
     )
 
     def __init__(self, llm: StructuredLLMPort) -> None:
