@@ -286,6 +286,7 @@ LLM-диаризация, Supervisor end-to-end и валидация контр
 | `Zvonok_v_bank_*.wav` | WAV | 8kHz | Диалог: другое (~2 мин) |
 
 > Файл `Zvonok_v_Privat_Bank_*.mp3` скачен с сайта [SkySound](https://xn-----8kcdcb6azafxgeb.skysound7.com) и конвертирован в `.wav` формат и в `8 kHz` на сайте [CloudConvert](https://cloudconvert.com/mp3-to-wav).
+> Все остальные файлы были сгенерированы по аналогии с `sample_dialog.mp3`.
 > Для конвертирования в `.ogg` формат использовался сайт [FreeConvert](https://www.freeconvert.com/mp3-to-ogg)
 
 ### Требования ТЗ
@@ -301,13 +302,14 @@ LLM-диаризация, Supervisor end-to-end и валидация контр
 
 | Файл | Модель | WER |
 |---|---|---|
-| sample_dialog.ogg | medium | — |
-| dialog-transfers-tel.mp3 | medium | — |
-| dialog-complaints-tel.mp3 | medium | — |
-| dialog-cards-tel.mp3 | medium | — |
-| dialog-incompetent-tel.mp3 | medium | — |
+| dialog-incompetent.mp3 | medium | 4.3% |
+| dialog-transfers.mp3 | medium | 12.5% |
+| dialog-cards.mp3 | medium | 13.3% |
+| dialog-complaints.mp3 | medium | 28.7% |
+| **Среднее** | | **14.7%** |
 
-> Таблица будет заполнена после прогона всех файлов через ASR с эталонными транскриптами.
+> Рассчитано через `jiwer` после прогона `faster-whisper` (medium, CPU int8) против эталонных текстов из `docs/sample-dialog-*.md`.
+> Скрипт расчёта: `scripts/calculate_wer.py`.
 
 ## Демо
 
