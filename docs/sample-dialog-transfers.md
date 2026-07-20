@@ -36,8 +36,8 @@ pip install edge-tts pydub
 # Оператор — женский голос
 edge-tts --voice ru-RU-SvetlanaNeural --text "Добрый день, МТБанк..." --write-media operator.mp3
 
-# Клиент — женский голос
-edge-tts --voice ru-RU-DariyaNeural --text "Здравствуйте..." --write-media client.mp3
+# Клиент — мужской голос (allback: доступен только DmitryNeural)
+edge-tts --voice ru-RU-DmitryNeural --text "Здравствуйте..." --write-media client.mp3
 ```
 
 Склейте реплики с **паузой 0,7 с между репликами** через `pydub` или `ffmpeg`:
