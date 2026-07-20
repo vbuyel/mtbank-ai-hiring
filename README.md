@@ -280,9 +280,13 @@ LLM-диаризация, Supervisor end-to-end и валидация контр
 | `dialog-cards-tel.mp3` | MP3 | 8 kHz | Телефонное качество |
 | `dialog-incompetent.mp3` | MP3 | полное | Диалог: некомпетентный оператор (~1 мин) |
 | `dialog-incompetent-tel.mp3` | MP3 | 8 kHz | Телефонное качество |
-| `sample_dialog.mp3` | MP3 | полное | Общий тестовый диалог |
+| `sample_dialog.mp3` | MP3 | полное | Диалог: кредит (~2 мин) |
+| `sample_dialog.ogg` | ODD | полное | Диалог: кредит (~2 мин) |
 | `Zvonok_v_Privat_Bank_*.mp3` | MP3 | полное | Реальный звонок в банк |
-| `Zvonok_v_bank_*.wav` | WAV | полное | Реальный звонок в банк |
+| `Zvonok_v_bank_*.wav` | WAV | 8kHz | Диалог: другое (~2 мин) |
+
+> Файл `Zvonok_v_Privat_Bank_*.mp3` скачен с сайта [SkySound](https://xn-----8kcdcb6azafxgeb.skysound7.com) и конвертирован в `.wav` формат и в `8 kHz` на сайте [CloudConvert](https://cloudconvert.com/mp3-to-wav).
+> Для конвертирования в `.ogg` формат использовался сайт [FreeConvert](https://www.freeconvert.com/mp3-to-ogg)
 
 ### Требования ТЗ
 
@@ -297,10 +301,11 @@ LLM-диаризация, Supervisor end-to-end и валидация контр
 
 | Файл | Модель | WER |
 |---|---|---|
-| dialog-transfers.mp3 | medium | — |
-| dialog-complaints.mp3 | medium | — |
-| dialog-cards.mp3 | medium | — |
-| dialog-incompetent.mp3 | medium | — |
+| sample_dialog.ogg | medium | — |
+| dialog-transfers-tel.mp3 | medium | — |
+| dialog-complaints-tel.mp3 | medium | — |
+| dialog-cards-tel.mp3 | medium | — |
+| dialog-incompetent-tel.mp3 | medium | — |
 
 > Таблица будет заполнена после прогона всех файлов через ASR с эталонными транскриптами.
 
