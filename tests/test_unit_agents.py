@@ -200,16 +200,20 @@ async def test_diarizer_sends_indexed_dialogue_and_schema_to_llm() -> None:
 
     result = await Diarizer(llm).assign_speakers(raw)
 
-    assert len(llm.calls) == 1
-    call = llm.calls[0]
-    assert call["response_model"] is DiarizationResult
-    assert call["user_prompt"] == (
+    assert len(llm.calls) == 2
+    initial_call, final_call = llm.calls
+    assert initial_call["response_model"] is DiarizationResult
+    assert initial_call["user_prompt"] == (
         "Разметь по ролям следующие реплики:\n"
         "0: Добрый день.\n"
         "1: Расскажите об условиях."
     )
-    assert "банковского звонка МТБанк" in call["system_prompt"]
-    assert "'Оператор' или 'Клиент'" in call["system_prompt"]
+    assert "входящего звонка в банк" in initial_call["system_prompt"]
+    assert "Эвристическая разметка" not in initial_call["user_prompt"]
+    assert final_call["response_model"] is DiarizationResult
+    assert "Независимая разметка LLM" in final_call["user_prompt"]
+    assert "Эвристическая разметка" in final_call["user_prompt"]
+    assert "0: Оператор\n1: Клиент" in final_call["user_prompt"]
     assert [item.model_dump() for item in result] == [
         {
             "start": 0.0,

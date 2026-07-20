@@ -99,8 +99,21 @@ async def test_compliance_returns_status(transcript) -> None:
 @pytest.mark.asyncio
 async def test_diarizer_corrects_clear_client_intent() -> None:
     class DiarizationLLM:
+        def __init__(self):
+            self.call = 0
+
         async def complete_json(self, system_prompt, user_prompt, response_model):
             del system_prompt, user_prompt, response_model
+            self.call += 1
+            if self.call == 2:
+                return DiarizationResult(
+                    speakers=[
+                        SegmentSpeaker(index=0, speaker="Оператор"),
+                        SegmentSpeaker(index=1, speaker="Клиент"),
+                        SegmentSpeaker(index=2, speaker="Оператор"),
+                        SegmentSpeaker(index=3, speaker="Оператор"),
+                    ]
+                )
             return DiarizationResult(
                 speakers=[
                     SegmentSpeaker(index=0, speaker="Клиент"),

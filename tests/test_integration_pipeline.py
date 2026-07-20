@@ -131,7 +131,7 @@ def test_pipeline_runs_complete_analysis_with_boundary_fakes() -> None:
     assert "- Отправить условия" in result
     assert Counter(llm.response_models) == Counter(
         {
-            DiarizationResult: 1,
+            DiarizationResult: 2,
             ClassificationResult: 1,
             QualityResult: 1,
             ComplianceResult: 1,

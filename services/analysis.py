@@ -59,11 +59,15 @@ class AnalysisService(AnalysisUseCase):
     async def _run_agents(
         self, transcript: list[TranscriptSegment]
     ) -> AgentResults:
+        async def _stagger(coro, delay):
+            await asyncio.sleep(delay)
+            return await coro
+
         return await asyncio.gather(
-            self.dependencies.classifier.run(transcript),
-            self.dependencies.quality.run(transcript),
-            self.dependencies.compliance.run(transcript),
-            self.dependencies.summarizer.run(transcript),
+            _stagger(self.dependencies.classifier.run(transcript), 0),
+            _stagger(self.dependencies.quality.run(transcript), 0.5),
+            _stagger(self.dependencies.compliance.run(transcript), 1.0),
+            _stagger(self.dependencies.summarizer.run(transcript), 1.5),
         )
 
 
