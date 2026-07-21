@@ -80,38 +80,39 @@ def transcribe_file(model: WhisperModel, audio_path: Path) -> str:
     return full_text
 
 
-def main():
-    print("Загрузка модели faster-whisper (medium)...")
-    model = WhisperModel("medium", device="cpu", compute_type="int8")
+def calculate_file_wer(model: WhisperModel, filename: str, reference: str) -> dict:
+    audio_path = TEST_DATA / filename
+    print(f"\nОбработка: {filename}")
+    hypothesis = transcribe_file(model, audio_path)
+    ref_normalized = normalize_text(reference)
+    hyp_normalized = normalize_text(hypothesis)
+    error_pct = wer(ref_normalized, hyp_normalized) * 100
+    print_file_result(ref_normalized, hyp_normalized, error_pct)
+    return {
+        "file": filename,
+        "wer": error_pct,
+        "ref_words": len(ref_normalized.split()),
+        "hyp_words": len(hyp_normalized.split()),
+    }
 
+
+def print_file_result(reference: str, hypothesis: str, error_pct: float) -> None:
+    print(f"  Reference: {reference[:80]}...")
+    print(f"  Hypothesis: {hypothesis[:80]}...")
+    print(f"  WER: {error_pct:.1f}%")
+
+
+def collect_results(model: WhisperModel) -> list[dict]:
     results = []
     for filename, reference in REFERENCE_TRANSCRIPTS.items():
-        audio_path = TEST_DATA / filename
-        if not audio_path.exists():
-            print(f"⚠️  Файл не найден: {audio_path}")
+        if not (TEST_DATA / filename).exists():
+            print(f"⚠️  Файл не найден: {TEST_DATA / filename}")
             continue
+        results.append(calculate_file_wer(model, filename, reference))
+    return results
 
-        print(f"\nОбработка: {filename}")
-        hypothesis = transcribe_file(model, audio_path)
 
-        ref_normalized = normalize_text(reference)
-        hyp_normalized = normalize_text(hypothesis)
-
-        error_rate = wer(ref_normalized, hyp_normalized)
-        error_pct = error_rate * 100
-
-        results.append({
-            "file": filename,
-            "wer": error_pct,
-            "ref_words": len(ref_normalized.split()),
-            "hyp_words": len(hyp_normalized.split()),
-        })
-
-        print(f"  Reference: {ref_normalized[:80]}...")
-        print(f"  Hypothesis: {hyp_normalized[:80]}...")
-        print(f"  WER: {error_pct:.1f}%")
-
-    # Print summary table
+def print_summary(results: list[dict]) -> None:
     print("\n" + "=" * 70)
     print("WER TABLE")
     print("=" * 70)
@@ -126,6 +127,12 @@ def main():
         print(f"{'Average':<35} {avg_wer:>7.1f}%")
     print("=" * 70)
 
+
+def main():
+    print("Загрузка модели faster-whisper (medium)...")
+    model = WhisperModel("medium", device="cpu", compute_type="int8")
+    results = collect_results(model)
+    print_summary(results)
     return results
 
 
