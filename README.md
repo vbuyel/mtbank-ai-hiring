@@ -272,21 +272,22 @@ LLM-диаризация, Supervisor end-to-end и валидация контр
 
 | Файл | Формат | Качество | Описание |
 |---|---|---|---|
-| `dialog-transfers.mp3` | MP3 | полное | Диалог: переводы (~1 мин) |
+| `dialog-transfers.mp3` | MP3 | 24kHz | Диалог: переводы (~1 мин) |
 | `dialog-transfers-tel.mp3` | MP3 | 8 kHz | Телефонное качество |
-| `dialog-complaints.mp3` | MP3 | полное | Диалог: жалобы (~1 мин) |
+| `dialog-complaints.mp3` | MP3 | 24kHz | Диалог: жалобы (~1 мин) |
 | `dialog-complaints-tel.mp3` | MP3 | 8 kHz | Телефонное качество |
-| `dialog-cards.mp3` | MP3 | полное | Диалог: карты (~1 мин) |
+| `dialog-cards.mp3` | MP3 | 24kHz | Диалог: карты (~1 мин) |
 | `dialog-cards-tel.mp3` | MP3 | 8 kHz | Телефонное качество |
-| `dialog-incompetent.mp3` | MP3 | полное | Диалог: некомпетентный оператор (~1 мин) |
+| `dialog-incompetent.mp3` | MP3 | 24kHz | Диалог: некомпетентный оператор (~1 мин) |
 | `dialog-incompetent-tel.mp3` | MP3 | 8 kHz | Телефонное качество |
-| `sample_dialog.mp3` | MP3 | полное | Диалог: кредит (~2 мин) |
-| `sample_dialog.ogg` | ODD | полное | Диалог: кредит (~2 мин) |
-| `Zvonok_v_Privat_Bank_*.mp3` | MP3 | полное | Реальный звонок в банк |
+| `sample_dialog.mp3` | MP3 | 24kHz | Диалог: кредит (~2 мин) |
+| `sample_dialog.ogg` | ODD | 24kHz | Диалог: кредит (~2 мин) |
+| `Zvonok_v_Privat_Bank_*.mp3` | MP3 | 44.1kHz | Реальный звонок в банк |
 | `Zvonok_v_bank_*.wav` | WAV | 8kHz | Диалог: другое (~2 мин) |
 
 > Файл `Zvonok_v_Privat_Bank_*.mp3` скачен с сайта [SkySound](https://xn-----8kcdcb6azafxgeb.skysound7.com) и конвертирован в `.wav` формат и в `8 kHz` на сайте [CloudConvert](https://cloudconvert.com/mp3-to-wav).
 > Все остальные файлы были сгенерированы по аналогии с `sample_dialog.mp3`.
+> Конвертация `dialog-***.mp3` файлов в 8kHz была получена с помощью кода `scripts/generate_dialogs.py`.
 > Для конвертирования в `.ogg` формат использовался сайт [FreeConvert](https://www.freeconvert.com/mp3-to-ogg)
 
 ### Требования ТЗ
