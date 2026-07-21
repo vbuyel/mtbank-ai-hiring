@@ -151,7 +151,7 @@ class Pipeline:
     @staticmethod
     def _upload_path(body: dict[str, Any]) -> Path | None:
         metadata = body.get("metadata", {})
-        for attachment in metadata.get("files", []):
+        for attachment in metadata.get("files") or []:
             file = attachment["file"]
             path = WEBUI_UPLOAD_DIR / f"{file['id']}_{Path(file['filename']).name}"
             if path.is_file():
