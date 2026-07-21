@@ -1,93 +1,211 @@
 # MTBank Call Analytics
 
-Прототип для [тестового задания AI Engineer](README_task.md): система
-анализирует русскоязычные звонки контакт-центра. `faster-whisper` создаёт
-транскрипт с таймкодами, LLM-диаризация назначает роли, а четыре независимых
-LLM-агента формируют классификацию, оценку качества, compliance-проверку и
-резюме.
+Архитектурный прототип для [тестового задания AI Engineer](README_task.md):
+система принимает запись русскоязычного звонка контакт-центра, строит
+транскрипт, назначает роли `Оператор` / `Клиент` и запускает четыре независимых
+LLM-агента для аналитики качества обслуживания.
 
-Сценарий доступен через OpenWebUI Pipeline и REST API `POST /analyze`; оба
-входа используют один `AnalysisService` и возвращают одинаковый набор данных.
+Проект намеренно сделан не как один большой pipeline-скрипт, а как небольшое
+приложение с портами, адаптерами и единым application use case. Поэтому
+OpenWebUI Pipeline и REST API используют один и тот же сценарий анализа и
+возвращают согласованные данные.
+
+## Возможности
+
+- Приём аудио через OpenWebUI чат: загрузка WAV/MP3/OGG или прямая ссылка на
+  аудиофайл.
+- REST API `POST /analyze` с `multipart/form-data` и JSON `{ "url": "..." }`.
+- ASR на `faster-whisper` с таймкодами сегментов.
+- Ролевая диаризация `Оператор` / `Клиент`: LLM-разметка сверяется с
+  эвристической разметкой по банковским репликам.
+- Четыре специализированных агента:
+  - классификатор темы и приоритета;
+  - агент качества по чеклисту оператора;
+  - compliance-проверка;
+  - суммаризатор с action items.
+- OpenAI-compatible LLM-клиент для Ollama, OpenAI-compatible gateway или другой
+  совместимой модели.
+- Раздельная конфигурация LLM для каждой задачи: диаризация, классификация,
+  качество, compliance и суммаризация могут работать на разных моделях.
+- Pydantic-контракты для всех ответов агентов и итогового API-ответа.
+- JSON-логи входа/выхода агентов и lifecycle-событий анализа.
+- Docker Compose для полного стека: OpenWebUI, Pipelines и FastAPI.
+- Pytest-набор: unit-тесты агентов, интеграционные тесты pipeline и
+  архитектурные guardrails.
 
 ## Архитектура
 
 ```mermaid
 flowchart LR
-    UI[OpenWebUI] --> P[OpenWebUI Pipeline]
-    REST[POST /analyze] --> S[AnalysisService / Supervisor]
-    P --> S
-    S --> ASR[faster-whisper]
-    ASR --> D[LLM diarizer]
-    D --> C[Classifier]
-    D --> Q[Quality]
-    D --> CO[Compliance]
-    D --> SU[Summarizer]
-    C --> R[AnalysisResponse]
-    Q --> R
-    CO --> R
-    SU --> R
+    User[Пользователь] --> WebUI[OpenWebUI]
+    User --> REST[REST API]
+
+    WebUI --> Pipeline[OpenWebUI Pipeline]
+    REST --> ApiRoute[api/main.py]
+
+    Pipeline --> UseCase[AnalysisService]
+    ApiRoute --> UseCase
+
+    UseCase --> ASR[faster-whisper Transcriber]
+    ASR --> Raw[RawSegment]
+    Raw --> Diarizer[LLM + heuristic Diarizer]
+    Diarizer --> Transcript[TranscriptSegment]
+
+    Transcript --> Classifier[ClassifierAgent]
+    Transcript --> Quality[QualityAgent]
+    Transcript --> Compliance[ComplianceAgent]
+    Transcript --> Summarizer[SummarizerAgent]
+
+    Classifier --> Response[AnalysisResponse]
+    Quality --> Response
+    Compliance --> Response
+    Summarizer --> Response
 ```
 
-### Обоснование выбора архитектуры
+Главный центр системы — `AnalysisService`. Он ничего не знает о FastAPI,
+OpenWebUI, HTTP-загрузках, Whisper-классах или конкретном LLM SDK. Сервис
+работает только с абстракциями из `core/ports.py`:
 
-Используется собственный **Supervisor pattern** вместо LangGraph:
+- `TranscriberPort`;
+- `DiarizerPort`;
+- `ClassifierPort`;
+- `QualityPort`;
+- `CompliancePort`;
+- `SummarizerPort`;
+- `AudioStoragePort`;
+- `StructuredLLMPort`.
 
-- **Граф процесса фиксированный и линейный** — нет ветвления или условных переходов между агентами. LangGraph избыточен для такой задачи.
-- **Параллельное выполнение** — классификатор, агент качества и compliance выполняются параллельно с суммаризатором через `asyncio.gather`. Суммаризатор получает только транскрипт и не зависит от результатов других агентов.
-- **Простота тестирования** — агенты не импортируют и не вызывают друг друга напрямую, поэтому их проще тестировать и заменять.
-- **Следование SRP** — каждый агент имеет одну ответственность, а оркестрация вынесена в отдельный сервис.
+Конкретные реализации собираются в `services/factory.py`, а FastAPI-приложение
+получает готовый контейнер через `api/bootstrap.py`. Это делает `factory` и
+`bootstrap` composition root проекта: здесь разрешено знать о реальных классах,
+моделях и настройках.
 
-### Dependency Direction
-
-Зависимости направлены от реализаций к стабильным портам:
+## Поток данных
 
 ```mermaid
-flowchart LR
-    API[api/main.py] --> Ports[core/ports.py]
-    Supervisor[services/analysis.py] --> Ports
-    Adapters[agents + asr + shared] --> Ports
-    Bootstrap[api/bootstrap.py] --> Factory[services/factory.py]
-    Factory --> Adapters
-    Factory --> Supervisor
+sequenceDiagram
+    participant Client as Client / OpenWebUI
+    participant Entry as Pipeline or API
+    participant Storage as AudioStorage
+    participant Service as AnalysisService
+    participant Whisper as Transcriber
+    participant Diarizer as Diarizer
+    participant Agents as 4 LLM agents
+
+    Client->>Entry: audio file or URL
+    Entry->>Storage: validate and materialize audio
+    Storage-->>Entry: temporary/local audio path
+    Entry->>Service: analyze(path)
+    Service->>Whisper: transcribe(path)
+    Whisper-->>Service: RawSegment[]
+    Service->>Diarizer: assign_speakers(raw)
+    Diarizer-->>Service: TranscriptSegment[]
+    Service->>Agents: run in parallel
+    Agents-->>Service: typed agent results
+    Service-->>Entry: AnalysisResponse
+    Entry-->>Client: JSON or Markdown report
 ```
+
+Порядок шагов фиксированный:
+
+1. Входной слой получает аудио и превращает его во временный файл.
+2. `Transcriber` строит ASR-сегменты с `start`, `end`, `text`.
+3. `Diarizer` назначает каждому сегменту роль.
+4. Четыре агента параллельно анализируют один и тот же транскрипт через
+   `asyncio.gather`.
+5. `AnalysisService` собирает единый `AnalysisResponse`.
+
+## Почему Supervisor Pattern
+
+В README_task.md разрешены LangGraph или собственный Supervisor-паттерн. Здесь
+выбран Supervisor, потому что граф процесса простой и заранее известный:
+транскрибация, диаризация, затем четыре независимые аналитические ветки.
+
+Такой выбор выделяется несколькими свойствами:
+
+- Меньше инфраструктурного шума. Для линейного workflow без условных переходов
+  LangGraph добавил бы зависимость и слой абстракции, но не дал бы ощутимой
+  пользы.
+- Ясное разделение ответственности. `AnalysisService` координирует сценарий,
+  агенты принимают только транскрипт и возвращают typed result, ASR занимается
+  только речью.
+- Хорошая тестируемость. Каждый порт легко заменить заглушкой, поэтому тесты
+  проверяют orchestration и контракты без скачивания моделей и сетевых вызовов.
+- Параллельность без усложнения. Агенты не зависят друг от друга, поэтому их
+  можно запускать одновременно и уменьшать latency после ASR-этапа.
+- Простая заменяемость адаптеров. Можно поменять Whisper на другой ASR,
+  локальную LLM на внешний gateway или prompt-based compliance на rule engine,
+  не переписывая API и Pipeline.
+
+## Направление зависимостей
+
+```mermaid
+flowchart TB
+    Models[models/schemas.py]
+    Ports[core/ports.py]
+    Service[services/analysis.py]
+    Entry[api/main.py + pipeline.py]
+    Adapters[agents/ + asr/ + shared/ + services/llm_client.py]
+    Factory[services/factory.py + api/bootstrap.py]
+
+    Ports --> Models
+    Service --> Ports
+    Entry --> Ports
+    Adapters --> Ports
+    Factory --> Service
+    Factory --> Adapters
+```
+
+Практическое правило: входные слои (`api/main.py`, `pipeline.py`) не должны
+создавать бизнес-зависимости напрямую. Они принимают запрос, получают
+`ApplicationContainer` и вызывают `container.analysis.analyze(...)`.
+
+Архитектурные ограничения закреплены тестами:
+
+- `api/main.py` не импортирует реализации из `services`, `agents`, `asr` или
+  `shared`;
+- функции в production-коде ограничены 15 строками;
+- агенты тестируются отдельно через mock LLM.
 
 ## Структура проекта
 
-```
+```text
 mtbank-ai-hiring/
-├── pipeline.py                # OpenWebUI Pipeline
-├── settings.py                # Pydantic Settings
+├── pipeline.py                # OpenWebUI Pipeline adapter
+├── settings.py                # Pydantic Settings from .env
 ├── agents/
-│   ├── base.py                # Template Method для агентов
-│   ├── classifier.py          # Классификатор тематики
-│   ├── quality.py             # Оценка качества обслуживания
-│   ├── compliance.py          # Проверка compliance
-│   ├── summarizer.py          # Суммаризация звонка
-│   └── validation.py          # Валидация ответов LLM
+│   ├── base.py                # Template Method: общий вызов LLM и логирование
+│   ├── classifier.py          # Тема обращения и приоритет
+│   ├── quality.py             # Чеклист качества оператора
+│   ├── compliance.py          # Compliance-анализ
+│   ├── summarizer.py          # Резюме и action items
+│   └── validation.py          # Валидация LLM-ответов
 ├── asr/
-│   ├── transcriber.py         # faster-whisper обёртка
-│   └── diarizer.py            # LLM-диаризация
+│   ├── transcriber.py         # faster-whisper adapter
+│   └── diarizer.py            # LLM + heuristic role assignment
 ├── api/
-│   ├── main.py                # FastAPI маршруты
-│   └── bootstrap.py           # Composition Root
+│   ├── main.py                # FastAPI routes
+│   └── bootstrap.py           # FastAPI composition root
 ├── core/
-│   ├── ports.py               # Абстрактные классы (порты)
-│   └── container.py           # Контейнер зависимостей
+│   ├── ports.py               # Абстрактные контракты приложения
+│   └── container.py           # ApplicationContainer
 ├── services/
-│   ├── analysis.py            # Supervisor оркестрация
-│   ├── factory.py             # Composition Root
-│   └── llm_client.py          # OpenAI-compatible клиент
+│   ├── analysis.py            # Supervisor use case
+│   ├── factory.py             # Wiring concrete dependencies
+│   └── llm_client.py          # OpenAI-compatible structured JSON client
 ├── models/
-│   └── schemas.py             # Pydantic-контракты
+│   └── schemas.py             # Pydantic request/response contracts
 ├── shared/
-│   ├── logging.py             # JSON-логирование
-│   └── audio.py               # Загрузка и обработка аудио
+│   ├── audio.py               # Upload/URL audio storage
+│   └── logging.py             # JSON logging helpers
 ├── tests/
-│   ├── test_agents.py         # Unit-тесты агентов
-│   ├── test_pipeline.py       # Интеграционные тесты
-│   └── test_architecture.py   # Проверка архитектурных ограничений
-├── test_data/                 # Тестовые аудио и транскрипты
-├── docs/                      # Сценарии диалогов
+│   ├── test_agents.py
+│   ├── test_unit_agents.py
+│   ├── test_pipeline.py
+│   ├── test_integration_pipeline.py
+│   └── test_architecture.py
+├── test_data/                 # Audio fixtures
+├── docs/                      # Dialog scripts and publish notes
 ├── docker-compose.yml
 ├── Dockerfile
 ├── Dockerfile.pipelines
@@ -95,137 +213,24 @@ mtbank-ai-hiring/
 └── requirements.txt
 ```
 
-### Правила размещения кода
+## Контракты ответа
 
-- Новый бизнес-сценарий или интерфейс сначала объявляется абстрактным классом в `core/ports.py`.
-- Оркестрация шагов пишется в `services/analysis.py`; сетевого и файлового кода там быть не должно.
-- Подключение конкретных классов выполняется только в `services/factory.py`.
-- HTTP parsing, коды ответа и FastAPI-зависимости пишутся в `api/main.py`.
-- Запуск FastAPI, конфигурация и создание реальных объектов — в `api/bootstrap.py`.
-- Реализация нового LLM-провайдера пишется в `services/llm_client.py` или отдельном адаптере рядом; класс реализует `StructuredLLMPort`.
-- Реализация ASR пишется в `asr/transcriber.py` и реализует `TranscriberPort`.
-- Реализация диаризации пишется в `asr/diarizer.py` и реализует `DiarizerPort`.
-- Промпт и логика конкретного эксперта пишутся в соответствующем файле `agents/`; общий вызов LLM и логирование остаются в `agents/base.py`.
-- Структуры входа/выхода добавляются в `models/schemas.py`, а не в API или агенты.
-- Загрузка файлов и URL реализуется в `shared/audio.py` через `AudioStoragePort`.
-- Общие технические утилиты без бизнес-решений размещаются в `shared/`.
-- Подмена реализации в тесте делается классом-заглушкой соответствующего порта; FastAPI и Supervisor не нужно переписывать.
-
-Все функции ограничены 15 строками. Ограничение автоматически проверяется в `tests/test_architecture.py`.
-
-## Требования и конфигурация
-
-- Python 3.11+;
-- LLM с OpenAI-compatible API (для локального запуска — [Ollama](https://ollama.com));
-- `ffmpeg` для обработки аудио; в Docker-образах он устанавливается автоматически;
-- Docker Desktop — только для полного стека.
-
-### Переменные окружения
-
-Создайте `.env` из примера:
-
-```bash
-cp .env.example .env
-```
-
-| Переменная | Назначение |
-|---|---|
-| `DIARIZER_LLM_*` | Модель диаризации (кто говорит) |
-| `CLASSIFIER_LLM_*` | Модель классификации разговора |
-| `QUALITY_LLM_*` | Модель оценки качества |
-| `COMPLIANCE_LLM_*` | Модель compliance-проверки |
-| `SUMMARIZER_LLM_*` | Модель итогового резюме |
-| `WHISPER_MODEL`, `WHISPER_DEVICE`, `WHISPER_COMPUTE_TYPE` | Конфигурация ASR |
-| `MAX_AUDIO_BYTES` | Максимальный размер входного файла, по умолчанию 50 MiB |
-| `LOG_LEVEL` | Уровень JSON-логирования |
-
-Для каждой задачи задаётся свой набор `*_LLM_BASE_URL`, `*_LLM_API_KEY`,
-`*_LLM_MODEL`. Общей модели нет. `tiny` в `.env.example` и Docker Compose
-предназначен для быстрого локального старта. Для соответствия ТЗ задайте
-`WHISPER_MODEL=medium` или более крупную модель. Для запуска контейнеров с
-Ollama на хосте используйте `*_LLM_BASE_URL=http://host.docker.internal:11434/v1`.
-
-## Запуск
-
-### Вариант A — только API (быстро, без Docker)
-
-Нужны: Python 3.11+, [Ollama](https://ollama.com) с любой chat-моделью.
-
-```bash
-cp .env.example .env
-# в .env для запуска (для каждой задачи свой набор):
-#   DIARIZER_LLM_BASE_URL=http://127.0.0.1:11434/v1
-#   DIARIZER_LLM_API_KEY=ollama
-#   DIARIZER_LLM_MODEL=llama3.2
-#   ... то же для CLASSIFIER/QUALITY/COMPLIANCE/SUMMARIZER
-#   WHISPER_MODEL=tiny            # для быстрого старта
-
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-
-uvicorn api.bootstrap:app --host 127.0.0.1 --port 8000
-```
-
-Откройте Swagger: <http://127.0.0.1:8000/docs>  
-Проверка: `curl http://127.0.0.1:8000/health` → `{"status":"ok"}`
-
-### Вариант B — полный стек (OpenWebUI + Pipelines + API)
-
-1. Запустите **Docker Desktop** (иначе `docker compose` упадёт с ошибкой socket).
-2. В `.env` для контейнеров верните:
-
-   ```bash
-   DIARIZER_LLM_BASE_URL=http://host.docker.internal:11434/v1
-   DIARIZER_LLM_API_KEY=ollama
-   DIARIZER_LLM_MODEL=llama3.2
-   ... то же для CLASSIFIER/QUALITY/COMPLIANCE/SUMMARIZER
-   WHISPER_MODEL=tiny            # для быстрого старта
-   ```
-
-3. Поднимите стек:
-
-   ```bash
-   docker compose up --build
-   ```
-
-4. Откройте:
-   - OpenWebUI: <http://localhost:3000>
-   - Swagger API: <http://localhost:8000/docs>
-
-Первый запуск скачивает Whisper и образы — это может занять много времени.
-
-## REST API
-
-| Метод | Путь | Описание |
-|---|---|---|
-| `GET` | `/health` | Проверка доступности API |
-| `POST` | `/analyze` | Транскрибация и полный анализ звонка |
-
-### Загрузка файла
-
-```bash
-curl -X POST http://localhost:8000/analyze \
-  -F "file=@test_data/dialog-transfers.mp3"
-```
-
-### Анализ URL
-
-```bash
-curl -X POST http://localhost:8000/analyze \
-  -H "Content-Type: application/json" \
-  -d '{"url":"https://example.org/call.mp3"}'
-```
-
-### Формат ответа
+Итоговый ответ соответствует формату из README_task.md:
 
 ```json
 {
   "transcript": [
-    {"speaker": "Оператор", "start": 0.0, "end": 4.2, "text": "..."}
-    {"speaker": "Клиент", "start": 4.2, "end": 8.5, "text": "..."}
+    {
+      "speaker": "Оператор",
+      "start": 0.0,
+      "end": 4.2,
+      "text": "Добрый день, МТБанк..."
+    }
   ],
-  "classification": {"topic": "переводы", "priority": "medium"},
+  "classification": {
+    "topic": "переводы",
+    "priority": "medium"
+  },
   "quality_score": {
     "total": 75,
     "checklist": {
@@ -236,20 +241,108 @@ curl -X POST http://localhost:8000/analyze \
     },
     "comment": "..."
   },
-  "compliance": {"passed": true, "issues": []},
+  "compliance": {
+    "passed": true,
+    "issues": []
+  },
   "summary": "Клиент обратился по вопросу перевода...",
   "action_items": ["Отправить инструкцию на email"]
 }
 ```
 
+Для OpenWebUI тот же `AnalysisResponse` форматируется в Markdown-отчёт:
+тема, приоритет, оценка качества, резюме, compliance, дальнейшие действия и
+транскрипт.
+
+## Конфигурация
+
+Создайте `.env` из примера:
+
+```bash
+cp .env.example .env
+```
+
+Основные переменные:
+
+| Переменная | Назначение |
+|---|---|
+| `DIARIZER_LLM_*` | Модель для назначения ролей |
+| `CLASSIFIER_LLM_*` | Модель классификации обращения |
+| `QUALITY_LLM_*` | Модель оценки качества |
+| `COMPLIANCE_LLM_*` | Модель compliance-проверки |
+| `SUMMARIZER_LLM_*` | Модель резюме и action items |
+| `WHISPER_MODEL` | Модель faster-whisper |
+| `WHISPER_DEVICE` | `cpu`, `cuda` или другой поддерживаемый backend |
+| `WHISPER_COMPUTE_TYPE` | Например, `int8` для CPU или `float16` для GPU |
+| `MAX_AUDIO_BYTES` | Максимальный размер аудиофайла |
+| `LOG_LEVEL` | Уровень JSON-логирования |
+
+Для локального Docker Compose дефолты смотрят на Ollama на хосте:
+`http://host.docker.internal:11434/v1`. В `.env.example` и Compose можно
+поставить `WHISPER_MODEL=tiny` для быстрого старта, но для соответствия
+README_task.md следует использовать `medium` или более крупную модель.
+
+## Запуск
+
+### Только API
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn api.bootstrap:app --host 127.0.0.1 --port 8000
+```
+
+Проверка:
+
+```bash
+curl http://127.0.0.1:8000/health
+```
+
+Swagger доступен на `http://127.0.0.1:8000/docs`.
+
+### Полный стек
+
+```bash
+docker compose up --build
+```
+
+После запуска:
+
+- OpenWebUI: `http://localhost:3000`;
+- FastAPI Swagger: `http://localhost:8000/docs`;
+- Pipelines service: `http://localhost:9099`.
+
+Первый запуск может быть долгим: Docker скачивает образы, а faster-whisper
+загружает модель.
+
+## REST API
+
+Загрузка файла:
+
+```bash
+curl -X POST http://localhost:8000/analyze \
+  -F "file=@test_data/dialog-transfers.mp3"
+```
+
+Анализ по URL:
+
+```bash
+curl -X POST http://localhost:8000/analyze \
+  -H "Content-Type: application/json" \
+  -d '{"url":"https://example.org/call.mp3"}'
+```
+
+Поддерживаемые расширения: `.wav`, `.mp3`, `.ogg`.
+
 ## OpenWebUI Pipeline
 
-После `docker compose up --build` откройте <http://localhost:3000>, выберите
-**MTBank Call Analytics** и загрузите WAV/MP3/OGG в чат либо отправьте прямой
-URL на файл. Конфиг LLM/ASR берётся из `.env` (через `Settings`), не из Valves
-в UI. Pipeline запускает тот же сценарий анализа, что и API, и возвращает
-Markdown-отчёт с темой, приоритетом, оценкой качества, резюме, compliance и
-транскриптом.
+После `docker compose up --build` откройте `http://localhost:3000`, выберите
+pipeline `MTBank Call Analytics` и загрузите аудиофайл в чат либо отправьте
+прямой URL, который заканчивается на `.wav`, `.mp3` или `.ogg`.
+
+Pipeline использует тот же `AnalysisService`, что и REST API. Разница только в
+адаптере ответа: API отдаёт JSON, OpenWebUI получает Markdown.
 
 ## Тесты
 
@@ -257,76 +350,69 @@ Markdown-отчёт с темой, приоритетом, оценкой кач
 PYTHONPATH=. pytest
 ```
 
-### Что проверяется
+Что проверяется:
 
-- **Unit-тесты агентов** (`test_agents.py`) — каждый агент проверяется отдельно с моком LLM.
-- **Интеграционные тесты** (`test_pipeline.py`) — полный сценарий анализа от аудио до ответа.
-- **Архитектурные ограничения** (`test_architecture.py`) — направление зависимостей и ограничение размера функций (15 строк).
+- агенты возвращают валидные Pydantic-модели при mock LLM;
+- pipeline и supervisor проходят end-to-end сценарии с заглушками ASR/LLM;
+- API не зависит от конкретных реализаций;
+- production-функции остаются короткими.
 
-В тестах Whisper и LLM заменяются заглушками: проверяются четыре агента,
-LLM-диаризация, Supervisor end-to-end и валидация контрактов без загрузки
-моделей и сетевых запросов.
+## Тестовые данные и ASR
 
-## Тестовые данные
+В `test_data/` лежат MP3, WAV и OGG-файлы с русскими банковскими диалогами,
+включая варианты телефонного качества 8 kHz. Эталонные тексты и сценарии
+размещены в `docs/`.
 
-### Доступные файлы
-
-| Файл | Формат | Качество | Описание |
-|---|---|---|---|
-| `dialog-transfers.mp3` | MP3 | 24kHz | Диалог: переводы (~1 мин) |
-| `dialog-transfers-tel.mp3` | MP3 | 8 kHz | Телефонное качество |
-| `dialog-complaints.mp3` | MP3 | 24kHz | Диалог: жалобы (~1 мин) |
-| `dialog-complaints-tel.mp3` | MP3 | 8 kHz | Телефонное качество |
-| `dialog-cards.mp3` | MP3 | 24kHz | Диалог: карты (~1 мин) |
-| `dialog-cards-tel.mp3` | MP3 | 8 kHz | Телефонное качество |
-| `dialog-incompetent.mp3` | MP3 | 24kHz | Диалог: некомпетентный оператор (~1 мин) |
-| `dialog-incompetent-tel.mp3` | MP3 | 8 kHz | Телефонное качество |
-| `sample_dialog.mp3` | MP3 | 24kHz | Диалог: кредит (~2 мин) |
-| `sample_dialog.ogg` | ODD | 24kHz | Телефонное качество + другой формат |
-| `Zvonok_v_Privat_Bank_*.mp3` | MP3 | 44.1kHz | Реальный звонок в банк |
-| `Zvonok_v_bank_*.wav` | WAV | 8kHz | Телефонное качество + другой формат |
-
-> Файл `Zvonok_v_Privat_Bank_*.mp3` скачен с сайта [SkySound](https://xn-----8kcdcb6azafxgeb.skysound7.com) и конвертирован в `.wav` формат и в `8 kHz` на сайте [CloudConvert](https://cloudconvert.com/mp3-to-wav).
-> Все остальные файлы были сгенерированы по аналогии с `sample_dialog.mp3`.
-> Конвертация `dialog-*.mp3` файлов в 8kHz была получена с помощью кода `scripts/generate_dialogs.py`.
-> Для конвертирования в `.ogg` формат использовался сайт [FreeConvert](https://www.freeconvert.com/mp3-to-ogg)
-
-### Требования ТЗ
-
-- Минимум 5 аудиофайлов (11 файлов)
-- Хотя бы один файл 8 kHz (5 файлов)
-- Диалог двух говорящих длительностью 1+ минута
-- Общая длительность не менее 5 минут
-- Эталонные транскрипты — в `docs/sample-dialog-*.md` (скрипт `scripts/calculate_wer.py` извлекает оттуда)
-- WER-таблица — см. ниже
-
-## Качество ASR (WER)
+Текущая WER-оценка для `faster-whisper medium` на CPU int8:
 
 | Файл | Модель | WER |
 |---|---|---|
-| dialog-incompetent.mp3 | medium | 4.3% |
-| dialog-transfers.mp3 | medium | 12.5% |
-| dialog-cards.mp3 | medium | 13.3% |
-| dialog-complaints.mp3 | medium | 28.7% |
-| **Среднее** | | **14.7%** |
+| `dialog-incompetent.mp3` | medium | 4.3% |
+| `dialog-transfers.mp3` | medium | 12.5% |
+| `dialog-cards.mp3` | medium | 13.3% |
+| `dialog-complaints.mp3` | medium | 28.7% |
+| Среднее | | 14.7% |
 
-> Рассчитано через `jiwer` после прогона `faster-whisper` (medium, CPU int8) против эталонных текстов из `docs/sample-dialog-*.md`.
-> Скрипт расчёта: `scripts/calculate_wer.py`.
+Расчёт выполняется скриптом `scripts/calculate_wer.py` через `jiwer`.
+
+## Почему архитектура хорошо подходит заданию
+
+- В задании есть два интерфейса, OpenWebUI и REST API. Общий use case убирает
+  риск расхождения поведения между ними.
+- В задании требуется минимум четыре агента. Портовая модель делает агентов
+  равноправными заменяемыми экспертами, а не вложенными вызовами друг друга.
+- LLM-ответы нестабильны по природе. Pydantic-контракты и structured JSON
+  клиент превращают “текст от модели” в проверяемые типы.
+- Контакт-центр — домен с будущим ростом правил. Compliance уже изолирован как
+  отдельный агент, поэтому позже его можно заменить на гибрид prompt +
+  rule-engine.
+- ASR, диаризация и аналитика имеют разную вычислительную стоимость.
+  Архитектура позволяет независимо оптимизировать каждый этап.
+- Тесты проверяют не только результат, но и границы модулей. Это важно для
+  тестового задания, где оценивается не только демо, но и инженерная
+  поддерживаемость.
+
+## Минусы и ограничения
+
+- Диаризация не является настоящей speaker diarization. Сейчас роли
+  назначаются через LLM и эвристики по тексту; для production лучше добавить
+  speaker embeddings или `pyannote.audio`.
+- Система анализирует уже готовый файл. Real-time WebSocket режим из бонусной
+  части README_task.md не реализован.
+- Compliance-правила зашиты в prompt. Для банка лучше хранить правила отдельно,
+  версионировать их и связывать с нормативными источниками.
+- URL-загрузка ограничивает схему и расширение файла, но пока не использует
+  allowlist доменов и сетевые политики против SSRF.
+- CPU + `int8` переносимы, но медленны на длинных звонках. Для продакшена нужен
+  GPU-профиль, очереди задач и нагрузочные тесты.
+- Нет persistence-слоя: результаты анализа не сохраняются в БД, поэтому
+  историческая аналитика и тренды пока не строятся.
+- LLM-агенты запускаются параллельно после диаризации, но ASR и диаризация
+  остаются последовательными bottleneck-этапами.
+- Нет отдельного наблюдаемого dashboard. JSON-логи есть, но Grafana-метрики из
+  бонусных требований не добавлены.
 
 ## Демо
 
-URL публичного HTTPS-демо будет добавлен после развёртывания. Локальная
-демонстрация доступна через Docker Compose и OpenWebUI.
-
-## Текущие ограничения
-
-- `Diarizer` сначала независимо строит LLM- и эвристическую разметки, затем
-  вторым LLM-вызовом сверяет их и назначает итоговые роли. Это не полноценная
-  speaker diarization: для production следует использовать speaker embeddings
-  или `pyannote.audio`.
-- Список compliance-правил пока задаётся промптом; в production правила
-  должны версионироваться отдельно.
-- Перед публичным деплоем загрузку URL нужно ограничить allowlist доменов,
-  чтобы исключить SSRF.
-- CPU с `int8` выбран как переносимый дефолт, но может быть медленным на
-  длинных записях; для production нужен GPU-профиль и нагрузочное тестирование.
+Публичный HTTPS URL может быть добавлен после деплоя. Локально демо доступно
+через Docker Compose и OpenWebUI на `http://localhost:3000`.
