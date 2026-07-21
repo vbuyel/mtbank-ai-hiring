@@ -282,9 +282,9 @@ LLM-диаризация, Supervisor end-to-end и валидация контр
 | `dialog-incompetent.mp3` | MP3 | 24kHz | Диалог: некомпетентный оператор (~1 мин) |
 | `dialog-incompetent-tel.mp3` | MP3 | 8 kHz | Телефонное качество |
 | `sample_dialog.mp3` | MP3 | 24kHz | Диалог: кредит (~2 мин) |
-| `sample_dialog.ogg` | ODD | 24kHz | Диалог: кредит (~2 мин) |
+| `sample_dialog.ogg` | ODD | 24kHz | Телефонное качество + другой формат |
 | `Zvonok_v_Privat_Bank_*.mp3` | MP3 | 44.1kHz | Реальный звонок в банк |
-| `Zvonok_v_bank_*.wav` | WAV | 8kHz | Диалог: другое (~2 мин) |
+| `Zvonok_v_bank_*.wav` | WAV | 8kHz | Телефонное качество + другой формат |
 
 > Файл `Zvonok_v_Privat_Bank_*.mp3` скачен с сайта [SkySound](https://xn-----8kcdcb6azafxgeb.skysound7.com) и конвертирован в `.wav` формат и в `8 kHz` на сайте [CloudConvert](https://cloudconvert.com/mp3-to-wav).
 > Все остальные файлы были сгенерированы по аналогии с `sample_dialog.mp3`.
