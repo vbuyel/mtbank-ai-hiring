@@ -223,10 +223,11 @@ curl -X POST http://localhost:8000/analyze \
 {
   "transcript": [
     {"speaker": "Оператор", "start": 0.0, "end": 4.2, "text": "..."}
+    {"speaker": "Клиент", "start": 4.2, "end": 8.5, "text": "..."}
   ],
   "classification": {"topic": "переводы", "priority": "medium"},
   "quality_score": {
-    "total": 78,
+    "total": 75,
     "checklist": {
       "greeting": true,
       "need_detection": true,
@@ -287,7 +288,7 @@ LLM-диаризация, Supervisor end-to-end и валидация контр
 
 > Файл `Zvonok_v_Privat_Bank_*.mp3` скачен с сайта [SkySound](https://xn-----8kcdcb6azafxgeb.skysound7.com) и конвертирован в `.wav` формат и в `8 kHz` на сайте [CloudConvert](https://cloudconvert.com/mp3-to-wav).
 > Все остальные файлы были сгенерированы по аналогии с `sample_dialog.mp3`.
-> Конвертация `dialog-***.mp3` файлов в 8kHz была получена с помощью кода `scripts/generate_dialogs.py`.
+> Конвертация `dialog-*.mp3` файлов в 8kHz была получена с помощью кода `scripts/generate_dialogs.py`.
 > Для конвертирования в `.ogg` формат использовался сайт [FreeConvert](https://www.freeconvert.com/mp3-to-ogg)
 
 ### Требования ТЗ

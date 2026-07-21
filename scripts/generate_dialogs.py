@@ -19,25 +19,25 @@ VOICES = {
 DIALOGS = [
     {
         "name": "dialog-transfers",
-        "md": "docs/sample-dialog-transfers.md",
+        "md": "test_data/transcripts/sample-dialog-transfers.md",
         "operator_voice": "operator_female",
         "client_voice": "client_female",
     },
     {
         "name": "dialog-incompetent",
-        "md": "docs/sample-dialog-incompetent.md",
+        "md": "test_data/transcripts/sample-dialog-incompetent.md",
         "operator_voice": "operator_female",
         "client_voice": "client_male",
     },
     {
         "name": "dialog-complaints",
-        "md": "docs/sample-dialog-complaints.md",
+        "md": "test_data/transcripts/sample-dialog-complaints.md",
         "operator_voice": "operator_female",
         "client_voice": "client_male",
     },
     {
         "name": "dialog-cards",
-        "md": "docs/sample-dialog-cards.md",
+        "md": "test_data/transcripts/sample-dialog-cards.md",
         "operator_voice": "operator_female",
         "client_voice": "client_female",
     },
