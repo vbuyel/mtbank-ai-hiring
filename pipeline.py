@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+import httpx
 from pydantic import BaseModel
 
 from settings import get_settings
@@ -23,6 +24,7 @@ from services.factory import build_application
 from shared.logging import configure_logging
 
 AUDIO_URL_RE = re.compile(r"https?://\S+\.(?:wav|mp3|ogg)(?:\?\S*)?", re.IGNORECASE)
+URL_RE = re.compile(r"https?://\S+", re.IGNORECASE)
 WEBUI_UPLOAD_DIR = Path("/open-webui-data/uploads")
 
 
@@ -73,7 +75,7 @@ class Pipeline:
         audio_path = self._upload_path(body)
         if audio_path is not None:
             body["audio_url"] = str(audio_path)
-        else:
+        elif not self._message_contains_url(body):
             body["skip_audio"] = True
         return body
 
@@ -89,7 +91,16 @@ class Pipeline:
         if self._should_skip(body):
             return user_message
         with self._runner_lock:
+            return self._run_analysis(body)
+
+
+    def _run_analysis(self, body: dict[str, Any]) -> str:
+        try:
             return self._runner.run(self._analyze(body))
+        except ValueError as error:
+            return self._format_user_error(str(error))
+        except httpx.HTTPError as error:
+            return self._format_user_error(f"Не удалось скачать аудио по URL: {error}")
 
 
     @staticmethod
@@ -128,6 +139,12 @@ class Pipeline:
         content = str(messages[-1].get("content", "")) if messages else ""
         if match := AUDIO_URL_RE.search(content):
             return match.group(0)
+        if URL_RE.search(content):
+            raise ValueError(
+                "Ссылка не похожа на прямой URL аудиофайла. "
+                "Отправьте URL, который заканчивается на .wav, .mp3 или .ogg, "
+                "или загрузите аудиофайл в чат."
+            )
         raise ValueError("Загрузите WAV/MP3/OGG файл или отправьте прямой URL")
 
 
@@ -140,6 +157,18 @@ class Pipeline:
             if path.is_file():
                 return path
         return None
+
+
+    @staticmethod
+    def _message_contains_url(body: dict[str, Any]) -> bool:
+        messages = body.get("messages", [])
+        content = str(messages[-1].get("content", "")) if messages else ""
+        return bool(URL_RE.search(content))
+
+
+    @staticmethod
+    def _format_user_error(message: str) -> str:
+        return f"## Не удалось запустить анализ\n{message}"
 
 
     @staticmethod

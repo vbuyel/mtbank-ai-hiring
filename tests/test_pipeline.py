@@ -112,6 +112,41 @@ async def test_pipeline_skips_open_webui_background_tasks() -> None:
 
 
 @pytest.mark.asyncio
+async def test_pipeline_does_not_skip_text_audio_url() -> None:
+    pipeline = object.__new__(Pipeline)
+    body = await pipeline.inlet(
+        {"messages": [{"content": "https://example.test/call.mp3"}]},
+    )
+
+    assert "skip_audio" not in body
+    assert Pipeline._extract_audio_reference(body) == "https://example.test/call.mp3"
+
+
+def test_pipeline_returns_user_error_for_non_direct_url() -> None:
+    pipeline = Pipeline()
+    try:
+        body = asyncio.run(
+            pipeline.inlet(
+                {
+                    "messages": [
+                        {
+                            "content": (
+                                "https://drive.google.com/file/d/file-id/view?usp=sharing"
+                            )
+                        }
+                    ],
+                },
+            )
+        )
+        result = pipeline.pipe("ignored", "mtbank", [], body)
+    finally:
+        pipeline._runner.close()
+
+    assert "## Не удалось запустить анализ" in result
+    assert "прямой URL аудиофайла" in result
+
+
+@pytest.mark.asyncio
 async def test_supervisor_builds_complete_response() -> None:
     service = build_service()
     result = await service.analyze(Path("call.wav"))
