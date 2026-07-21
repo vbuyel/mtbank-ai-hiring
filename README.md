@@ -10,6 +10,15 @@ LLM-агента для аналитики качества обслуживан
 OpenWebUI Pipeline и REST API используют один и тот же сценарий анализа и
 возвращают согласованные данные.
 
+## Демо
+
+Локально демо доступно через Docker Compose и OpenWebUI на `http://localhost:3000`.
+
+Живое демо: 
+```text
+public
+```
+
 ## Возможности
 
 - Приём аудио через OpenWebUI чат: загрузка WAV/MP3/OGG или прямая ссылка на
@@ -84,26 +93,26 @@ OpenWebUI, HTTP-загрузках, Whisper-классах или конкрет
 
 ```mermaid
 sequenceDiagram
-    participant Client as Client / OpenWebUI
-    participant Entry as Pipeline or API
+    participant Client as Клиент / OpenWebUI
+    participant Entry as Pipeline или API
     participant Storage as AudioStorage
     participant Service as AnalysisService
     participant Whisper as Transcriber
     participant Diarizer as Diarizer
-    participant Agents as 4 LLM agents
+    participant Agents as 4 LLM агента
 
-    Client->>Entry: audio file or URL
-    Entry->>Storage: validate and materialize audio
-    Storage-->>Entry: temporary/local audio path
+    Client->>Entry: аудио файл или URL
+    Entry->>Storage: проверить аудио
+    Storage-->>Entry: временный/локальный путь к аудио
     Entry->>Service: analyze(path)
     Service->>Whisper: transcribe(path)
     Whisper-->>Service: RawSegment[]
     Service->>Diarizer: assign_speakers(raw)
     Diarizer-->>Service: TranscriptSegment[]
-    Service->>Agents: run in parallel
-    Agents-->>Service: typed agent results
+    Service->>Agents: многопоточный вызов
+    Agents-->>Service: результаты вызовов
     Service-->>Entry: AnalysisResponse
-    Entry-->>Client: JSON or Markdown report
+    Entry-->>Client: JSON или Markdown репорт
 ```
 
 Порядок шагов фиксированный:
@@ -150,8 +159,8 @@ flowchart TB
 
     Ports --> Models
     Service --> Ports
-    Entry --> Ports
     Adapters --> Ports
+    Entry --> Ports
     Factory --> Service
     Factory --> Adapters
 ```
@@ -171,41 +180,41 @@ flowchart TB
 
 ```text
 mtbank-ai-hiring/
-├── pipeline.py                # OpenWebUI Pipeline adapter
-├── settings.py                # Pydantic Settings from .env
+├── pipeline.py                # OpenWebUI Pipeline адаптер
+├── settings.py                # Pydantic настройки из .env
 ├── agents/
-│   ├── base.py                # Template Method: общий вызов LLM и логирование
+│   ├── base.py                # Общий вызов LLM
 │   ├── classifier.py          # Тема обращения и приоритет
 │   ├── quality.py             # Чеклист качества оператора
 │   ├── compliance.py          # Compliance-анализ
 │   ├── summarizer.py          # Резюме и action items
 │   └── validation.py          # Валидация LLM-ответов
 ├── asr/
-│   ├── transcriber.py         # faster-whisper adapter
-│   └── diarizer.py            # LLM + heuristic role assignment
+│   ├── transcriber.py         # faster-whisper адаптер
+│   └── diarizer.py            # LLM + heuristic назначение роли
 ├── api/
-│   ├── main.py                # FastAPI routes
+│   ├── main.py                # FastAPI пути
 │   └── bootstrap.py           # FastAPI composition root
 ├── core/
 │   ├── ports.py               # Абстрактные контракты приложения
 │   └── container.py           # ApplicationContainer
 ├── services/
-│   ├── analysis.py            # Supervisor use case
-│   ├── factory.py             # Wiring concrete dependencies
-│   └── llm_client.py          # OpenAI-compatible structured JSON client
+│   ├── analysis.py            # Supervisor
+│   ├── factory.py             # Конкретные зависимости подключения
+│   └── llm_client.py          # OpenAI-совместимый структурированный JSON клиент
 ├── models/
-│   └── schemas.py             # Pydantic request/response contracts
+│   └── schemas.py             # Pydantic запрос/ответ
 ├── shared/
-│   ├── audio.py               # Upload/URL audio storage
-│   └── logging.py             # JSON logging helpers
+│   ├── audio.py               # Загрузить/URL аудио
+│   └── logging.py             # JSON логи
 ├── tests/
 │   ├── test_agents.py
 │   ├── test_unit_agents.py
 │   ├── test_pipeline.py
 │   ├── test_integration_pipeline.py
 │   └── test_architecture.py
-├── test_data/                 # Audio fixtures
-├── docs/                      # Dialog scripts and publish notes
+├── test_data/                 # Тестовое аудио с транскрипцией
+├── docs/                      # Диалоговый транскрипт и заметки
 ├── docker-compose.yml
 ├── Dockerfile
 ├── Dockerfile.pipelines
@@ -411,8 +420,3 @@ PYTHONPATH=. pytest
   остаются последовательными bottleneck-этапами.
 - Нет отдельного наблюдаемого dashboard. JSON-логи есть, но Grafana-метрики из
   бонусных требований не добавлены.
-
-## Демо
-
-Публичный HTTPS URL может быть добавлен после деплоя. Локально демо доступно
-через Docker Compose и OpenWebUI на `http://localhost:3000`.
