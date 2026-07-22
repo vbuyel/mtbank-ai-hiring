@@ -16,7 +16,7 @@ OpenWebUI Pipeline и REST API используют один и тот же сц
 
 Живое демо: 
 ```text
-public
+https://effective-justice-began-simpsons.trycloudflare.com
 ```
 
 ## Возможности
