@@ -14,11 +14,6 @@ OpenWebUI Pipeline и REST API используют один и тот же сц
 
 Локально демо доступно через Docker Compose и OpenWebUI на `http://localhost:3000`.
 
-Живое демо: 
-```text
-https://effective-justice-began-simpsons.trycloudflare.com
-```
-
 ## Возможности
 
 - Приём аудио через OpenWebUI чат: загрузка WAV/MP3/OGG или прямая ссылка на
