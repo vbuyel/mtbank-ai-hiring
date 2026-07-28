@@ -64,6 +64,7 @@ class AnalysisService(AnalysisUseCase):
             self.dependencies.quality.run(transcript),
             self.dependencies.compliance.run(transcript),
             self.dependencies.summarizer.run(transcript),
+            return_exceptions=True,
         )
 
 
