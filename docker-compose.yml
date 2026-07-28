@@ -73,7 +73,7 @@ services:
       SUMMARIZER_LLM_BASE_URL: ${SUMMARIZER_LLM_BASE_URL:-http://host.docker.internal:11434/v1}
       SUMMARIZER_LLM_API_KEY: ${SUMMARIZER_LLM_API_KEY:-ollama}
       SUMMARIZER_LLM_MODEL: ${SUMMARIZER_LLM_MODEL:-llama3.2}
-      WHISPER_MODEL: ${WHISPER_MODEL:-tiny}
+      WHISPER_MODEL: ${WHISPER_MODEL:-medium}
       WHISPER_DEVICE: ${WHISPER_DEVICE:-cpu}
       WHISPER_COMPUTE_TYPE: ${WHISPER_COMPUTE_TYPE:-int8}
       HF_HOME: /root/.cache/huggingface
