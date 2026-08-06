@@ -1,9 +1,10 @@
-"""Supervisor pattern coordinating ASR and four specialized agents."""
+"""Supervisor pattern coordinating ASR and four specialized agents (LangChain LCEL)."""
 
-import asyncio
 import logging
 from dataclasses import dataclass
 from pathlib import Path
+
+from langchain_core.runnables import RunnableLambda, RunnableParallel
 
 from core.ports import (
     AnalysisUseCase,
@@ -24,10 +25,6 @@ from models.schemas import (
 )
 from shared.logging import log_event
 
-AgentResults = tuple[
-    ClassificationResult, QualityResult, ComplianceResult, SummaryResult
-]
-
 
 @dataclass(frozen=True)
 class AnalysisDependencies:
@@ -43,6 +40,12 @@ class AnalysisService(AnalysisUseCase):
     def __init__(self, dependencies: AnalysisDependencies) -> None:
         self.dependencies = dependencies
         self.logger = logging.getLogger("services.analysis")
+        self._agents = RunnableParallel(
+            classification=RunnableLambda(dependencies.classifier.run),
+            quality=RunnableLambda(dependencies.quality.run),
+            compliance=RunnableLambda(dependencies.compliance.run),
+            summary=RunnableLambda(dependencies.summarizer.run),
+        )
 
 
     async def analyze(self, audio_path: Path) -> AnalysisResponse:
@@ -51,21 +54,10 @@ class AnalysisService(AnalysisUseCase):
         transcript = await self.dependencies.diarizer.assign_speakers(raw)
         if not transcript:
             raise ValueError("В аудио не удалось распознать речь")
-        results = await self._run_agents(transcript)
-        response = self._build_response(transcript, *results)
+        results = await self._agents.ainvoke(transcript)
+        response = self._build_response(transcript, **results)
         self._log_completed(response)
         return response
-
-    async def _run_agents(
-        self, transcript: list[TranscriptSegment]
-    ) -> AgentResults:
-        return await asyncio.gather(
-            self.dependencies.classifier.run(transcript),
-            self.dependencies.quality.run(transcript),
-            self.dependencies.compliance.run(transcript),
-            self.dependencies.summarizer.run(transcript),
-            return_exceptions=True,
-        )
 
 
     @staticmethod
