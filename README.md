@@ -27,6 +27,7 @@ OpenWebUI Pipeline и REST API используют один и тот же сц
   - агент качества по чеклисту оператора;
   - compliance-проверка;
   - суммаризатор с action items.
+- Параллельный запуск агентов через LangChain LCEL (`RunnableParallel`).
 - OpenAI-compatible LLM-клиент для Ollama, OpenAI-compatible gateway или другой
   совместимой модели.
 - Раздельная конфигурация LLM для каждой задачи: диаризация, классификация,
@@ -104,7 +105,7 @@ sequenceDiagram
     Whisper-->>Service: RawSegment[]
     Service->>Diarizer: assign_speakers(raw)
     Diarizer-->>Service: TranscriptSegment[]
-    Service->>Agents: многопоточный вызов
+    Service->>Agents: RunnableParallel (LCEL)
     Agents-->>Service: результаты вызовов
     Service-->>Entry: AnalysisResponse
     Entry-->>Client: JSON или Markdown репорт
@@ -116,7 +117,7 @@ sequenceDiagram
 2. `Transcriber` строит ASR-сегменты с `start`, `end`, `text`.
 3. `Diarizer` назначает каждому сегменту роль.
 4. Четыре агента параллельно анализируют один и тот же транскрипт через
-   `asyncio.gather`.
+   LangChain `RunnableParallel` (LCEL).
 5. `AnalysisService` собирает единый `AnalysisResponse`.
 
 ## Почему Supervisor Pattern
@@ -125,11 +126,18 @@ sequenceDiagram
 выбран Supervisor, потому что граф процесса простой и заранее известный:
 транскрибация, диаризация, затем четыре независимые аналитические ветки.
 
+Параллельный запуск агентов реализован на LangChain LCEL: `AnalysisService`
+компонует четыре агента в `RunnableParallel` и вызывает их через `ainvoke`.
+LangGraph не используется: для фиксированного DAG без условных переходов,
+циклов и персистентности его возможности (conditional edges, checkpointing,
+human-in-the-loop) остались бы невостребованными.
+
 Такой выбор выделяется несколькими свойствами:
 
 - Меньше инфраструктурного шума. Для линейного workflow без условных переходов
   LangGraph добавил бы зависимость и слой абстракции, но не дал бы ощутимой
-  пользы.
+  пользы. LangChain используется точечно — только для параллельной композиции
+  агентов.
 - Ясное разделение ответственности. `AnalysisService` координирует сценарий,
   агенты принимают только транскрипт и возвращают typed result, ASR занимается
   только речью.
@@ -151,14 +159,20 @@ flowchart TB
     Entry[api/main.py + pipeline.py]
     Adapters[agents/ + asr/ + shared/ + services/llm_client.py]
     Factory[services/factory.py + api/bootstrap.py]
+    LangChain[langchain-core: RunnableParallel]
 
     Ports --> Models
     Service --> Ports
+    Service --> LangChain
     Adapters --> Ports
     Entry --> Ports
     Factory --> Service
     Factory --> Adapters
 ```
+
+Единственная внешняя библиотека в слое сервисов — `langchain-core`: она
+используется только для параллельной композиции агентов (`RunnableParallel` +
+`RunnableLambda`) и не влияет на порты, агентов и API.
 
 Практическое правило: входные слои (`api/main.py`, `pipeline.py`) не должны
 создавать бизнес-зависимости напрямую. Они принимают запрос, получают
@@ -194,7 +208,7 @@ mtbank-ai-hiring/
 │   ├── ports.py               # Абстрактные контракты приложения
 │   └── container.py           # ApplicationContainer
 ├── services/
-│   ├── analysis.py            # Supervisor
+│   ├── analysis.py            # Supervisor (LangChain LCEL RunnableParallel)
 │   ├── factory.py             # Конкретные зависимости подключения
 │   └── llm_client.py          # OpenAI-совместимый структурированный JSON клиент
 ├── models/
@@ -387,6 +401,9 @@ PYTHONPATH=. pytest
   равноправными заменяемыми экспертами, а не вложенными вызовами друг друга.
 - LLM-ответы нестабильны по природе. Pydantic-контракты и structured JSON
   клиент превращают “текст от модели” в проверяемые типы.
+- LangChain используется дозированно — только для параллельной композиции
+  агентов. Это даёт стандартный, узнаваемый механизм без привязки остальных
+  слоёв к фреймворку: порты, агенты и API остаются framework-agnostic.
 - Контакт-центр — домен с будущим ростом правил. Compliance уже изолирован как
   отдельный агент, поэтому позже его можно заменить на гибрид prompt +
   rule-engine.
